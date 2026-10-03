@@ -22,12 +22,13 @@
     snowleopard:  { name: 'Snow leopard', wants: ['tree', 'toy', 'bush'],  cost: 4500, appeal: 9,  babyScale: 0.5,  galleryScale: 1.0 },
   };
   // Approval status lives separately so it is easy to edit: { adult, baby }
+  // All nine species approved by Alex on 2026-10-03.
   const APPROVED = {
-    lion: { adult: false, baby: false }, elephant: { adult: false, baby: false },
-    giraffe: { adult: false, baby: false }, zebra: { adult: false, baby: false },
-    penguin: { adult: false, baby: false }, bear: { adult: false, baby: false },
-    monkey: { adult: false, baby: false }, flamingo: { adult: false, baby: false },
-    snowleopard: { adult: false, baby: false },
+    lion: { adult: true, baby: true }, elephant: { adult: true, baby: true },
+    giraffe: { adult: true, baby: true }, zebra: { adult: true, baby: true },
+    penguin: { adult: true, baby: true }, bear: { adult: true, baby: true },
+    monkey: { adult: true, baby: true }, flamingo: { adult: true, baby: true },
+    snowleopard: { adult: true, baby: true },
   };
 
   // ---------- drawing helpers ----------
