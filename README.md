@@ -19,7 +19,7 @@ Controls: drag to move around, scroll or pinch to zoom, space to pause, Esc to g
 
 ## Animal approval
 
-Every animal's adult and baby art must be approved before it appears in the game. Approval lives in `js/animals.js`:
+Every animal's adult and baby art must be approved before it appears in the game. Approval lives in `animals.js`:
 
 ```js
 const APPROVED = {
@@ -45,15 +45,15 @@ const APPROVED = {
 | --- | --- |
 | `index.html` | The game page and its layout |
 | `approve.html` | Animal approval sheet |
-| `js/animals.js` | Animal art, walk cycles, species data, approvals |
-| `js/world-art.js` | Trees, bushes, water, toys, people, litter, entrance |
-| `js/game.js` | Map, exhibits, guests, staff, money, breeding, saving |
+| `animals.js` | Animal art, walk cycles, species data, approvals |
+| `world-art.js` | Trees, bushes, water, toys, people, litter, entrance |
+| `game.js` | Map, exhibits, guests, staff, money, breeding, saving |
 
 There's no build step and nothing to install.
 
 ## Publishing on GitHub Pages
 
 1. Create a new repository on GitHub, for example `3d-zoo`.
-2. Choose **Add file → Upload files**. Drag in `index.html`, `approve.html`, `README.md`, and the whole `js` folder, then commit.
+2. Choose **Add file → Upload files**. Drag in all six files (`index.html`, `approve.html`, `animals.js`, `world-art.js`, `game.js`, `README.md`) together, then commit. They all go at the top level, with no folders.
 3. Go to **Settings → Pages**. Under **Build and deployment**, pick **Deploy from a branch**, then `main` and `/ (root)`, and save.
-4. After a minute the game is live at `https://<your-username>.github.io/3d-zoo/`.
+4. After a minute the game is live at `https://<your-username>.github.io/<repo-name>/`.
