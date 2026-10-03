@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Zoo — Animal Approval</title>
+<style>
+  :root { --ink:#111; --paper:#fff; --soft:#f2f2f2; --mid:#777; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.4 "Courier New", ui-monospace, monospace; }
+  header { padding:16px; border-bottom:3px solid var(--ink); }
+  h1 { margin:0; font-size:26px; letter-spacing:2px; }
+  header p { margin:4px 0 0; color:var(--mid); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; padding:16px; }
+  .card { border:2px solid var(--ink); background:var(--paper); }
+  canvas { display:block; width:100%; height:auto; border-bottom:2px solid var(--ink); }
+  .info { padding:8px 10px; }
+  .name { font-weight:bold; font-size:16px; }
+  .row { font-size:12px; display:flex; justify-content:space-between; margin-top:4px; }
+  .status { font-size:11px; border:1px solid var(--ink); padding:0 4px; }
+  .status.ok { background:var(--ink); color:var(--paper); }
+  .wants { font-size:12px; color:#444; margin-top:3px; }
+  .toggle { margin:0 16px 4px; font:inherit; border:2px solid var(--ink); background:var(--paper); padding:6px 10px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>3D ZOO</h1>
+  <p>Animal approval sheet — only approved adults can be bought, and only approved babies can be born.</p>
+</header>
+<button class="toggle" id="toggle">Show standing pose</button>
+<div class="grid" id="grid"></div>
+<script src="js/animals.js"></script>
+<script>
+  const W = 320, H = 230, cards = [];
+  let moving = true;
+  const badge = ok => `<span class="status ${ok ? 'ok' : ''}">${ok ? 'APPROVED' : 'PENDING'}</span>`;
+  ZooAnimals.ids.forEach(id => {
+    const s = ZooAnimals.SPECIES[id], a = ZooAnimals.APPROVED[id];
+    const card = document.createElement('div'); card.className = 'card';
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    card.appendChild(cv);
+    const info = document.createElement('div'); info.className = 'info';
+    info.innerHTML = `<div class="name">${s.name}</div>
+      <div class="wants">Wants: ${s.wants.join(', ')}</div>
+      <div class="row">Adult ${badge(a.adult)}</div><div class="row">Baby ${badge(a.baby)}</div>`;
+    card.appendChild(info);
+    document.getElementById('grid').appendChild(card);
+    cards.push({ id, ctx: cv.getContext('2d'), s });
+  });
+  document.getElementById('toggle').onclick = e => {
+    moving = !moving; e.target.textContent = moving ? 'Show standing pose' : 'Show walking';
+  };
+  const t0 = performance.now();
+  function frame(now) {
+    const t = (now - t0) / 1000;
+    cards.forEach(({ id, ctx, s }) => {
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      const gy = H - 30;
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+      const off = moving ? (t * 34) % 24 : 0;   // ground ticks scroll to show forward motion
+      ctx.lineWidth = 1.5;
+      for (let x = -off; x < W; x += 24) { ctx.beginPath(); ctx.moveTo(x, gy + 8); ctx.lineTo(x + 8, gy + 8); ctx.stroke(); }
+      const sc = 1.15 * s.galleryScale;
+      ZooAnimals.draw(ctx, id, W * 0.68, gy, { phase: t * 4.3, moving, scale: sc });
+      ZooAnimals.draw(ctx, id, W * 0.15, gy, { phase: t * 6 + 1.3, moving, scale: sc, baby: true });
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
