@@ -7,7 +7,32 @@
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2;
-  const COST = { path: 10, fence: 25, tree: 150, bush: 60, water: 200, toy: 120 };
+  const COST = { path: 10, fence: 25, tree: 150, bush: 60, water: 200, toy: 120, gift: 2500, edu: 4000 };
+  const BUILDINGS = {
+    gift: { name: 'Gift shop', upkeep: 30, job: 'Sells stuffed animals of the animals guests liked best' },
+    edu: { name: 'Education center', upkeep: 40, job: 'Teaches guests about the animals, so they enjoy the exhibits more' },
+  };
+  const PLUSH_PRICE = 15, PLUSH_COST = 6;            // stuffed animal sale price and what it costs the zoo
+  // What each species eats, and what one portion costs (babies eat half portions).
+  const DIET = {
+    lion: { kind: 'meat', food: 'meat', cost: 25 }, elephant: { kind: 'hay', food: 'hay and fruit', cost: 30 },
+    giraffe: { kind: 'leaves', food: 'leafy branches', cost: 15 }, zebra: { kind: 'hay', food: 'hay', cost: 8 },
+    penguin: { kind: 'fish', food: 'fish', cost: 6 }, bear: { kind: 'fish', food: 'fish and berries', cost: 18 },
+    monkey: { kind: 'fruit', food: 'fruit', cost: 6 }, flamingo: { kind: 'shrimp', food: 'shrimp pellets', cost: 5 },
+    snowleopard: { kind: 'meat', food: 'meat', cost: 22 },
+  };
+  // One fact per species for the education center (kept to well-established facts).
+  const FACTS = {
+    lion: 'Lions are the only big cats that live in family groups, called prides.',
+    elephant: 'Elephants drink by sucking water up their trunks and squirting it into their mouths.',
+    giraffe: 'A giraffe has seven neck bones, the same number as a person.',
+    zebra: 'No two zebras have exactly the same stripe pattern.',
+    penguin: 'Penguins can\'t fly through the air, but their flippers let them "fly" underwater.',
+    bear: 'Most bears are omnivores and eat plants, berries, insects, and fish.',
+    monkey: 'Some monkeys from the Americas can grab branches with their tails.',
+    flamingo: 'Flamingos get their pink color from pigments in the food they eat.',
+    snowleopard: 'Snow leopards use their long, thick tails for balance and wrap them around themselves for warmth.',
+  };
   const STAFF = {
     janitor: { name: 'Janitor', hire: 500, wage: 60, job: 'Sweeps litter off the paths' },
     keeper: { name: 'Keeper', hire: 800, wage: 90, job: 'Feeds animals and cleans exhibits' },
@@ -23,8 +48,8 @@
   const SELL_ADULT = 0.15, SELL_BABY = 0.1;          // selling returns only a small fraction
   const MAX_GUESTS = 160;
   const SAVE_KEY = '3dzoo-save-v1';
-  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y' };
-  const CHAR_ITEM = { t: 'tree', b: 'bush', w: 'water', y: 'toy' };
+  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e' };
+  const CHAR_ITEM = { t: 'tree', b: 'bush', w: 'water', y: 'toy', g: 'gift', e: 'edu' };
   const NAMES = ['Mabel', 'Otis', 'Pip', 'Juniper', 'Hank', 'Clementine', 'Biscuit', 'Rosie', 'Gus', 'Waffles', 'Luna',
     'Moose', 'Pickles', 'Daisy', 'Ziggy', 'Noodle', 'Fern', 'Bruno', 'Olive', 'Tater', 'Winnie', 'Rocco', 'Peanut', 'Hazel',
     'Ivy', 'Bean', 'Maple', 'Duke', 'Poppy', 'Nugget', 'Sage', 'Theo', 'Willow', 'Banjo', 'Cocoa', 'Remy'];
@@ -43,6 +68,12 @@
   }
   const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
   const approved = (sp, baby) => !!(Z.APPROVED[sp] && Z.APPROVED[sp][baby ? 'baby' : 'adult']);
+  const plural = sp => Z.SPECIES[sp].name.toLowerCase() + 's';
+  const INCOME = { tickets: 'Tickets', gifts: 'Gift shop', sales: 'Animal sales' };
+  const COSTS = { staff: 'Staff', food: 'Animal food', build: 'Building and upkeep', animals: 'Buying animals', merch: 'Gift shop stock' };
+  const newToday = () => ({ guests: 0, births: 0, eduVisits: 0, plush: 0, tickets: 0, gifts: 0, sales: 0,
+    staff: 0, food: 0, build: 0, animals: 0, merch: 0 });
+  const sumOf = (t, cats) => Object.keys(cats).reduce((s, k) => s + (t[k] || 0), 0);
 
   // ---------- state ----------
   let S = null;                 // saved game state
@@ -62,8 +93,8 @@
     return {
       v: 1, money: 25000, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
       tiles, items: new Array(MW * MH).fill(null), animals: [], staff: [],
-      litter: {}, poop: {}, nextId: 1, log: [], arrivalAcc: 0,
-      today: { guests: 0, tickets: 0, wages: 0, sales: 0, births: 0 }, totals: { guests: 0, births: 0 },
+      litter: {}, poop: {}, food: {}, nextId: 1, log: [], arrivalAcc: 0,
+      today: newToday(), totals: { guests: 0, births: 0 }, history: [], comments: {}, plushSales: {},
     };
   }
 
@@ -73,6 +104,8 @@
     S.log.length = Math.min(S.log.length, 40);
     renderNews();
   }
+  function spend(cat, n) { S.money -= n; S.today[cat] = (S.today[cat] || 0) + n; }
+  function earn(cat, n) { S.money += n; S.today[cat] = (S.today[cat] || 0) + n; }
   let toastTimer = null;
   function toast(msg) {
     const el = document.getElementById('toast');
@@ -122,6 +155,10 @@
         }
       });
       E.reachable = E.tiles.some(i => neighbors(i).some(n => gateOf[n]));
+      // keepers put food just inside the gate, on a clear tile if there is one
+      const byGate = E.tiles.filter(i => neighbors(i).some(n => gateOf[n]));
+      const clear = t => !S.items[t] || S.items[t] === 'toy';
+      E.feedTile = byGate.find(clear) ?? E.tiles.find(clear) ?? E.tiles[0];
     });
     if (fix) fixEntities();
   }
@@ -199,12 +236,14 @@
   }
 
   function exStats() {
-    // per-exhibit totals used by happiness and breeding
+    // per-exhibit totals used by happiness, feeding and breeding
     return EX.map(E => {
       const list = S.animals.filter(a => a.ex === E.id);
       const need = list.reduce((s, a) => s + SPEC[a.sp].space * (a.baby ? 0.5 : 1), 0);
       const poop = E.tiles.reduce((s, i) => s + (S.poop[i] || 0), 0);
-      return { list, need, poop, space: need ? Math.min(1, E.tiles.length / need) : 1 };
+      const food = {};
+      E.tiles.forEach(i => { if (S.food[i]) Object.entries(S.food[i]).forEach(([sp, n]) => { food[sp] = (food[sp] || 0) + n; }); });
+      return { list, need, poop, food, space: need ? Math.min(1, E.tiles.length / need) : 1 };
     });
   }
 
@@ -216,13 +255,19 @@
       space: x.space,
       food: 1 - clamp((a.hunger - 30) / 70, 0, 1),
       clean: Math.max(0, 1 - x.poop / Math.max(3, E.tiles.length * 0.15)),
+      fun: a.fun || 0,
     };
   }
-  const happyTarget = p => 100 * (0.4 * p.wants + 0.2 * p.space + 0.2 * p.food + 0.2 * p.clean);
+  // Recent play adds a small bonus on top of the four needs.
+  const happyTarget = p => Math.min(100, 100 * (0.4 * p.wants + 0.2 * p.space + 0.2 * p.food + 0.2 * p.clean) + 6 * p.fun);
+
+  const foodTileFor = a => EX[a.ex].tiles.find(i => S.food[i] && S.food[i][a.sp] > 0);
+  const toyPlay = {};           // toy tile -> clock time its ball stops rolling (not saved)
 
   function updateAnimal(a, dt, st) {
-    a.hunger = Math.min(100, a.hunger + dt * 100 / (DAY * 1.5));
+    a.hunger = Math.min(100, a.hunger + dt * 100 / (DAY * 2));
     a.age += dt / DAY;
+    a.fun = Math.max(0, (a.fun || 0) - dt / DAY);
     if (a.baby && a.age >= GROW_DAYS) {
       a.baby = false;
       log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} is all grown up.`);
@@ -234,20 +279,59 @@
     const target = happyTarget(happinessParts(a, st));
     a.happy += (target - a.happy) * Math.min(1, dt * 0.25);
 
+    // eating or playing
+    if (a.act) {
+      a.actT -= dt;
+      if (a.act === 'eat') {
+        a.moving = false; a.hop = 0;
+        if (a.actT <= 0) {
+          const i = a.actTile, pile = S.food[i];
+          if (pile && pile[a.sp] > 0) {
+            pile[a.sp]--; if (!pile[a.sp]) delete pile[a.sp]; if (!Object.keys(pile).length) delete S.food[i];
+            a.hunger = Math.max(0, a.hunger - 85);
+          }
+          a.act = null; a.wait = 1 + Math.random() * 2;
+        }
+      } else {
+        a.moving = true; a.phase += dt * 7;
+        a.facing = Math.sin(a.actT * 4) > 0 ? 1 : -1;
+        a.hop = Math.abs(Math.sin(a.actT * 7)) * 3;
+        if (a.actT <= 0) { a.act = null; a.hop = 0; a.fun = 1; a.wait = 1 + Math.random() * 2; }
+      }
+      return;
+    }
     if (a.wait > 0) { a.wait -= dt; a.moving = false; return; }
     if (!a.path.length) {
-      const E = EX[a.ex];
-      const spots = E.tiles.filter(i => S.items[i] !== 'tree' && S.items[i] !== 'water');
-      const goalTile = (spots.length ? spots : E.tiles)[Math.floor(Math.random() * (spots.length || E.tiles.length))];
-      const route = bfs(tileAt(a.x, a.y), i => exOf[i] === a.ex, i => i === goalTile);
-      if (route && route.length) a.path = toPoints(route.slice(-5), 14);
+      const E = EX[a.ex], here = tileAt(a.x, a.y);
+      let goalTile = -1; a.goal = null;
+      const ft = a.hunger > 35 ? foodTileFor(a) : undefined;
+      if (ft !== undefined) { goalTile = ft; a.goal = 'food'; }
+      else if (E.items.toy && a.hunger < 70 && Math.random() < 0.3) {
+        const toys = E.tiles.filter(i => S.items[i] === 'toy');
+        goalTile = toys[Math.floor(Math.random() * toys.length)]; a.goal = 'toy';
+      } else {
+        const spots = E.tiles.filter(i => S.items[i] !== 'tree' && S.items[i] !== 'water');
+        goalTile = (spots.length ? spots : E.tiles)[Math.floor(Math.random() * (spots.length || E.tiles.length))];
+      }
+      a.goalTile = goalTile;
+      if (goalTile === here && a.goal) { startAct(a, here); return; }
+      const route = bfs(here, i => exOf[i] === a.ex, i => i === goalTile);
+      if (route && route.length) a.path = toPoints(a.goal ? route : route.slice(-5), a.goal ? 10 : 14);
       a.wait = route && route.length ? 0 : 1 + Math.random() * 2;
       if (!a.path.length) return;
     }
     const moved = stepAlong(a, SPEC[a.sp].speed * (a.baby ? 0.85 : 1) * dt);
     a.phase += moved * (a.baby ? 0.75 : 0.5);
     a.moving = moved > 0;
-    if (!a.path.length) a.wait = 1 + Math.random() * 4;
+    if (!a.path.length) {
+      if (a.goal && tileAt(a.x, a.y) === a.goalTile) startAct(a, a.goalTile);
+      else a.wait = 1 + Math.random() * 4;
+    }
+  }
+  function startAct(a, i) {
+    if (a.goal === 'food' && S.food[i] && S.food[i][a.sp] > 0) { a.act = 'eat'; a.actT = 3; a.actTile = i; }
+    else if (a.goal === 'toy' && S.items[i] === 'toy') { a.act = 'play'; a.actT = 4; toyPlay[i] = clock + 4; }
+    a.goal = null;
   }
 
   function dailyBreeding(st) {
@@ -262,7 +346,7 @@
         const roomy = E.tiles.length >= x.need + SPEC[sp].space * 0.5;
         if (!approved(sp, true)) {
           if (avg >= 70 && roomy && Math.random() < 0.3)
-            log(`The ${Z.SPECIES[sp].name.toLowerCase()}s seem ready for a baby, but baby art is awaiting approval.`);
+            log(`The ${plural(sp)} seem ready for a baby, but baby art is awaiting approval.`);
           return;
         }
         if (avg >= 70 && roomy && Math.random() < 0.3) {
@@ -278,10 +362,12 @@
   // ---------- guests ----------
   function spawnGuest() {
     const c = center(idx(ENT.x, ENT.y));
-    guests.push({ x: c.x + (Math.random() - 0.5) * 10, y: c.y, path: [], phase: Math.random() * 6, facing: 1, happy: 55,
+    guests.push({ x: c.x + (Math.random() - 0.5) * 10, y: c.y, path: [], phase: Math.random() * 6, facing: 1,
+      happy: 55 - Math.max(0, S.ticket - 20) * 0.8,                 // steep tickets put guests in a worse mood
       seen: new Set(), visits: new Map(), stay: DAY * (0.5 + Math.random() * 0.6), leaving: false,
-      litterT: 20 + Math.random() * 30, look: A.randomGuestLook(), moving: true });
-    S.money += S.ticket; S.today.tickets += S.ticket; S.today.guests++; S.totals.guests++;
+      litterT: 30 + Math.random() * 40, look: A.randomGuestLook(), moving: true,
+      best: 0, fav: null, litterSeen: 0, rolled: new Set(), boost: 1 });
+    earn('tickets', S.ticket); S.today.guests++; S.totals.guests++;
   }
 
   function guestSees(g, i) {
@@ -290,34 +376,83 @@
       g.seen.add(eid);
       const list = S.animals.filter(a => a.ex === eid);
       if (!list.length) return;
-      let gain = list.reduce((s, a) => s + Z.SPECIES[a.sp].appeal * (a.happy / 100) * (a.baby ? 1.4 : 1), 0) * 0.9;
-      gain = Math.min(22, gain);
+      g.sawAnimals = true;
+      const bySp = {};
+      list.forEach(a => { bySp[a.sp] = (bySp[a.sp] || 0) + Z.SPECIES[a.sp].appeal * (a.happy / 100) * (a.baby ? 1.4 : 1); });
+      Object.entries(bySp).forEach(([sp, v]) => { if (v > g.best) { g.best = v; g.fav = sp; } });
+      let gain = Object.values(bySp).reduce((s, v) => s + v, 0) * 0.9 * g.boost;
+      gain = Math.min(22 * g.boost, gain);
       const avg = list.reduce((s, a) => s + a.happy, 0) / list.length;
-      if (avg < 40) gain -= 6;
+      if (avg < 40) { gain -= 6; g.sawSad = list[0].sp; }
       g.happy = clamp(g.happy + gain, 0, 100);
     });
   }
 
+  // Guests next to a gift shop or education center may pop inside for a few seconds.
+  // Each guest decides once per building; for the gift shop, only after they've found a favorite animal.
+  function maybeVisit(g, i) {
+    for (const n of neighbors(i)) {
+      const it = S.items[n];
+      if (!BUILDINGS[it] || g.rolled.has(n)) continue;
+      if (it === 'gift' && (!g.fav || g.plush)) continue;
+      if (it === 'edu' && (g.learned || g.leaving)) continue;
+      g.rolled.add(n);
+      if (it === 'gift' && Math.random() < 0.55) { g.inside = { i: n, type: it, t: 3 + Math.random() * 2 }; return true; }
+      if (it === 'edu' && Math.random() < 0.45) { g.inside = { i: n, type: it, t: 4 + Math.random() * 2 }; return true; }
+    }
+    return false;
+  }
+  function leaveBuilding(g) {
+    const b = g.inside; g.inside = null;
+    if (b.type === 'gift') {
+      earn('gifts', PLUSH_PRICE); spend('merch', PLUSH_COST);
+      g.plush = g.fav; S.plushSales[g.fav] = (S.plushSales[g.fav] || 0) + 1; S.today.plush++;
+      g.happy = clamp(g.happy + 5, 0, 100);
+    } else {
+      const here = [...new Set(S.animals.map(a => a.sp))];
+      const pool = here.length ? here : Object.keys(FACTS);
+      g.learned = pool[Math.floor(Math.random() * pool.length)];
+      g.boost = 1.3; S.today.eduVisits++;
+      g.happy = clamp(g.happy + 8, 0, 100);
+    }
+  }
+
+  function guestComments(g) {
+    const out = [];
+    if (g.fav) out.push(`Loved the ${plural(g.fav)}!`);
+    if (!g.sawAnimals) out.push('Not much to see yet');
+    if (g.sawSad) out.push(`The ${plural(g.sawSad)} looked unhappy`);
+    if (g.litterSeen >= 8) out.push('Too much litter on the paths');
+    if (S.ticket > 25) out.push('Tickets are pricey');
+    if (g.learned) out.push('Learned something new at the education center');
+    if (g.plush) out.push(`Bought a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}!`);
+    out.forEach(c => { S.comments[c] = (S.comments[c] || 0) + 1; });
+  }
+
   function updateGuest(g, dt) {
+    if (g.inside) { g.inside.t -= dt; if (g.inside.t <= 0) leaveBuilding(g); return; }
     g.stay -= dt;
     if (!g.leaving && (g.stay <= 0 || g.happy < 15)) { g.leaving = true; }
     g.litterT -= dt;
     if (g.litterT <= 0) {
-      g.litterT = 25 + Math.random() * 30;
+      g.litterT = 40 + Math.random() * 40;
       const i = tileAt(g.x, g.y);
-      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.35) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
+      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.3) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
     }
     if (!g.path.length) {
       const i = tileAt(g.x, g.y);
       if (g.leaving) {
+        // head for the exit one tile at a time, so guests can still stop at the gift shop on the way out
         if (i === idx(ENT.x, ENT.y)) { g.gone = true; return; }
+        if (maybeVisit(g, i)) return;
         const r = bfs(i, j => S.tiles[j] === PATH, j => j === idx(ENT.x, ENT.y));
         if (!r) { g.gone = true; return; }
-        g.path = toPoints(r, 10);
+        g.path = toPoints(r.slice(0, 1), 10);
       } else {
         guestSees(g, i);
-        if (S.litter[i]) g.happy = clamp(g.happy - 0.7 * S.litter[i], 0, 100);
+        if (S.litter[i]) { g.happy = clamp(g.happy - 0.7 * S.litter[i], 0, 100); g.litterSeen += S.litter[i]; }
         g.visits.set(i, (g.visits.get(i) || 0) + 1);
+        if (maybeVisit(g, i)) return;
         const opts = neighbors(i).filter(n => S.tiles[n] === PATH);
         if (!opts.length) { g.leaving = true; return; }
         let best = Infinity, picks = [];
@@ -337,7 +472,7 @@
   function hire(type) {
     const d = STAFF[type];
     if (S.money < d.hire) { toast(`Not enough money to hire a ${d.name.toLowerCase()}.`); return; }
-    S.money -= d.hire;
+    spend('staff', d.hire);
     const c = center(idx(ENT.x, ENT.y));
     S.staff.push({ id: S.nextId++, type, x: c.x, y: c.y, path: [], phase: 0, facing: 1, workT: 0, state: 'idle', ex: -1,
       name: NAMES[Math.floor(Math.random() * NAMES.length)] });
@@ -365,20 +500,46 @@
       if (r) { s.path = toPoints(r); s.task = 'Heading to litter'; }
       else { s.task = 'Patrolling'; wander(s); }
     }
-    const moved = stepAlong(s, 26 * dt); s.phase += moved * 0.45; s.moving = moved > 0;
+    const moved = stepAlong(s, 38 * dt); s.phase += moved * 0.45; s.moving = moved > 0;
   }
 
   const keeperPass = E => j => S.tiles[j] === PATH || exOf[j] === E || (gateOf[j] && gateOf[j].includes(E));
   const unreachableUntil = {};
+  const nowT = () => S.day * DAY + S.time;
+
+  // Portions each species in an exhibit still needs: hungry animals minus food already out.
+  function foodNeeded(ex) {
+    const st = exStats()[ex], need = {};
+    if (!st) return need;
+    st.list.filter(a => a.hunger > 15).forEach(a => {   // everyone who'll want a meal soon gets a portion
+      const n = need[a.sp] || (need[a.sp] = { n: 0, cost: 0 });
+      n.n++; n.cost += DIET[a.sp].cost * (a.baby ? 0.5 : 1);
+    });
+    Object.keys(need).forEach(sp => {
+      const have = st.food[sp] || 0;
+      if (have >= need[sp].n) { delete need[sp]; return; }
+      const frac = (need[sp].n - have) / need[sp].n;
+      need[sp].n -= have; need[sp].cost = Math.round(need[sp].cost * frac);
+    });
+    return need;
+  }
 
   function updateKeeper(s, dt, st) {
     if (s.workT > 0) {
       s.workT -= dt; s.moving = false;
       if (s.workT <= 0) {
         if (s.doing === 'clean') { delete S.poop[tileAt(s.x, s.y)]; }
-        if (s.doing === 'feed') {
-          S.animals.forEach(a => { if (a.ex === s.ex) a.hunger = 0; });
-          s.state = 'leave';
+        if (s.doing === 'feed' && EX[s.ex]) {
+          const need = foodNeeded(s.ex), total = Object.values(need).reduce((t, v) => t + v.cost, 0);
+          if (total > 0 && S.money < total) {
+            if (!S.today.foodWarned) { log('Not enough money to buy animal food! Animals will go hungry.'); S.today.foodWarned = 1; }
+            unreachableUntil[s.ex] = nowT() + 15;
+          } else if (total > 0) {
+            spend('food', total);
+            const ft = EX[s.ex].feedTile, pile = S.food[ft] || (S.food[ft] = {});
+            Object.entries(need).forEach(([sp, v]) => { pile[sp] = (pile[sp] || 0) + v.n; });
+          }
+          s.fed = true;            // food first, then tidy up before leaving
         }
         s.doing = null;
       }
@@ -390,33 +551,40 @@
         const claimed = new Set(S.staff.filter(o => o !== s && o.type === 'keeper' && o.state !== 'idle').map(o => o.ex));
         let bestE = -1, bestScore = 22;
         st.forEach((x, id) => {
-          if (!x.list.length || claimed.has(id) || (unreachableUntil[id] || 0) > S.day * DAY + S.time) return;
-          const hunger = x.list.reduce((m, a) => Math.max(m, a.hunger), 0);
-          const score = hunger + x.poop * 9;
+          if (!x.list.length || claimed.has(id) || (unreachableUntil[id] || 0) > nowT()) return;
+          const hungry = x.list.filter(a => a.hunger > 30 && !(x.food[a.sp] > 0));
+          const score = hungry.reduce((m, a) => Math.max(m, a.hunger), 0) + x.poop * 9;
           if (score > bestScore) { bestScore = score; bestE = id; }
         });
         if (bestE >= 0) {
           const r = bfs(here, keeperPass(bestE), j => exOf[j] === bestE);
-          if (r) { s.ex = bestE; s.state = 'work'; s.path = toPoints(r); s.task = 'Walking to an exhibit'; }
+          if (r) { s.ex = bestE; s.state = 'work'; s.fed = false; s.path = toPoints(r); s.task = 'Walking to an exhibit'; }
           else {
-            unreachableUntil[bestE] = S.day * DAY + S.time + 20;
+            unreachableUntil[bestE] = nowT() + 20;
             if (!s.warned) { log('A keeper can\'t reach an exhibit. Make sure a path runs right alongside its fence.'); s.warned = true; }
           }
         }
         if (s.state === 'idle') { s.task = 'Waiting for a job'; wander(s); }
       } else if (s.state === 'work') {
         if (!EX[s.ex]) { s.state = 'leave'; return; }
+        if (!s.fed && Object.keys(foodNeeded(s.ex)).length) {
+          const ft = EX[s.ex].feedTile;
+          const r2 = here === ft ? [] : bfs(here, j => exOf[j] === s.ex, j => j === ft);
+          if (r2 && r2.length) { s.path = toPoints(r2); s.task = 'Bringing food'; }
+          else { s.workT = 2; s.doing = 'feed'; s.task = 'Putting out food'; }
+          return;
+        }
         if (S.poop[here] && exOf[here] === s.ex) { s.workT = 1.5; s.doing = 'clean'; s.task = 'Cleaning the exhibit'; return; }
         const r = bfs(here, j => exOf[j] === s.ex, j => exOf[j] === s.ex && !!S.poop[j]);
         if (r && r.length) { s.path = toPoints(r); s.task = 'Cleaning the exhibit'; }
-        else { s.workT = 2; s.doing = 'feed'; s.task = 'Feeding the animals'; }
+        else s.state = 'leave';
       } else if (s.state === 'leave') {
-        if (S.tiles[here] === PATH) { s.state = 'idle'; s.ex = -1; return; }
+        if (S.tiles[here] === PATH) { s.state = 'idle'; s.ex = -1; s.fed = false; return; }
         const r = bfs(here, s.ex >= 0 ? keeperPass(s.ex) : () => true, j => S.tiles[j] === PATH);
         if (r) { s.path = toPoints(r); s.task = 'Heading back to the path'; } else { warpToEntrance(s); s.state = 'idle'; }
       }
     }
-    const moved = stepAlong(s, 26 * dt); s.phase += moved * 0.45; s.moving = moved > 0;
+    const moved = stepAlong(s, 38 * dt); s.phase += moved * 0.45; s.moving = moved > 0;
   }
 
   // ---------- economy ----------
@@ -425,20 +593,27 @@
     const a = S.animals.reduce((s, an) => { species.add(an.sp); return s + Z.SPECIES[an.sp].appeal * (an.happy / 100) * (an.baby ? 1.5 : 1); }, 0);
     return a + species.size * 2;
   }
+  const hasBuilding = t => S.items.includes(t);
   function guestsPerDay() {
     const priceF = clamp(1.6 - S.ticket / 25, 0, 1.6);
-    return (3 + attraction() * 0.9) * (0.5 + S.rep / 100) * priceF;
+    return (3 + attraction() * 0.9) * (0.5 + S.rep / 100) * priceF * (hasBuilding('edu') ? 1.1 : 1);
   }
 
   function endOfDay(st) {
     const wages = S.staff.reduce((s, x) => s + STAFF[x.type].wage, 0);
-    S.money -= wages; S.today.wages = wages;
-    const t = S.today;
-    log(`Day ${S.day}: ${t.guests} guests, ${money(t.tickets)} in tickets, ${money(-wages)} wages${t.sales ? `, ${money(t.sales)} from sales` : ''}.`);
+    spend('staff', wages);
+    const upkeep = S.items.reduce((s, it) => s + (BUILDINGS[it] ? BUILDINGS[it].upkeep : 0), 0);
+    if (upkeep) spend('build', upkeep);
+    const t = S.today, inc = sumOf(t, INCOME), cost = sumOf(t, COSTS);
+    log(`Day ${S.day}: ${t.guests} guests. Income ${money(inc)}, costs ${money(cost)}, so ${inc - cost >= 0 ? 'a profit' : 'a loss'} of ${money(Math.abs(inc - cost))}.`);
     if (S.money < 0) log('The zoo is in the red. Raise income or cut staff before buying more.');
+    const snap = { day: S.day }; Object.keys({ ...INCOME, ...COSTS }).forEach(k => { snap[k] = Math.round(t[k] || 0); });
+    snap.guests = t.guests; snap.plush = t.plush; snap.eduVisits = t.eduVisits;
+    S.history.push(snap); if (S.history.length > 30) S.history.shift();
+    Object.keys(S.comments).forEach(k => { S.comments[k] *= 0.5; if (S.comments[k] < 0.5) delete S.comments[k]; });
     dailyBreeding(st);
     S.day++; S.time -= DAY;
-    S.today = { guests: 0, tickets: 0, wages: 0, sales: 0, births: 0 };
+    S.today = newToday();
     save(true);
   }
 
@@ -452,7 +627,7 @@
     while (S.arrivalAcc >= 1) { S.arrivalAcc -= 1; if (guests.length < MAX_GUESTS) spawnGuest(); }
     guests.forEach(g => updateGuest(g, dt));
     guests = guests.filter(g => {
-      if (g.gone) { S.rep = S.rep * 0.95 + g.happy * 0.05; if (selected && selected.ref === g) selected = null; }
+      if (g.gone) { S.rep = S.rep * 0.95 + g.happy * 0.05; guestComments(g); if (selected && selected.ref === g) selected = null; }
       return !g.gone;
     });
     S.staff.forEach(s => (s.type === 'janitor' ? updateJanitor(s, dt) : updateKeeper(s, dt, st)));
@@ -473,21 +648,29 @@
       if (item) return first && toast('Something is already here.');
       if (exOf[i] >= 0) return first && toast('Paths can\'t go inside an exhibit.');
       if (!canAfford(COST.path)) return;
-      S.money -= COST.path; S.tiles[i] = PATH; recompute();
+      spend('build', COST.path); S.tiles[i] = PATH; recompute();
     } else if (tool === 'fence') {
       if (t === FENCE) return;
       if (t === PATH) return first && toast('Remove the path first.');
       if (item) return first && toast('Something is already here.');
       if (!canAfford(COST.fence)) return;
-      S.money -= COST.fence; S.tiles[i] = FENCE; delete S.poop[i]; recompute();
+      spend('build', COST.fence); S.tiles[i] = FENCE; delete S.poop[i]; delete S.food[i]; recompute();
     } else if (['tree', 'bush', 'water', 'toy'].includes(tool)) {
       if (t !== GRASS) return first && toast('Place this on grass or inside an exhibit.');
       if (item) return first && toast('Something is already here.');
       if (!canAfford(COST[tool])) return;
-      S.money -= COST[tool]; S.items[i] = tool; recompute();
+      spend('build', COST[tool]); S.items[i] = tool; recompute();
+    } else if (BUILDINGS[tool]) {
+      const b = BUILDINGS[tool];
+      if (t !== GRASS || item) return first && toast('Buildings go on an empty grass tile.');
+      if (exOf[i] >= 0) return first && toast('Buildings can\'t go inside an exhibit.');
+      if (!neighbors(i).some(n => S.tiles[n] === PATH)) return first && toast(`The ${b.name.toLowerCase()} needs to be right next to a path.`);
+      if (!canAfford(COST[tool])) return;
+      spend('build', COST[tool]); S.items[i] = tool; recompute();
+      log(`Built a ${b.name.toLowerCase()}.`);
     } else if (tool === 'remove') {
       if (isEnt) return first && toast('The entrance stays.');
-      if (item) { S.money += Math.round(COST[item] * 0.5); S.items[i] = null; recompute(); return; }
+      if (item) { const r = Math.round(COST[item] * 0.5); S.money += r; S.today.build -= r; S.items[i] = null; recompute(); return; }
       if (t === PATH) { S.tiles[i] = GRASS; delete S.litter[i]; recompute(); return; }
       if (t === FENCE) {
         S.tiles[i] = GRASS; recompute(false);   // test the change before committing to it
@@ -501,7 +684,7 @@
       if (!approved(sp, false)) return toast(`${d.name} is awaiting approval.`);
       if (exOf[i] < 0) return toast('Animals go inside a fully fenced exhibit.');
       if (!canAfford(d.cost)) return;
-      S.money -= d.cost;
+      spend('animals', d.cost);
       const c = center(i), a = makeAnimal(sp, c.x, c.y, false); a.ex = exOf[i];
       S.animals.push(a);
       log(`Welcome ${a.name} the ${d.name.toLowerCase()}!`);
@@ -510,10 +693,16 @@
 
   function sellAnimal(a) {
     const d = Z.SPECIES[a.sp], value = Math.round(d.cost * (a.baby ? SELL_BABY : SELL_ADULT));
-    S.money += value; S.today.sales += value;
+    earn('sales', value);
     S.animals = S.animals.filter(x => x !== a);
     log(`${a.name} the ${d.name.toLowerCase()} moved to another zoo for ${money(value)}.`);
     selected = null; renderPanel();
+  }
+  function renameAnimal(a, name) {
+    name = name.replace(/\s+/g, ' ').trim().slice(0, 16);
+    if (!name || name === a.name) return;
+    log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} is now called ${name}.`);
+    a.name = name; renderPanel();
   }
   function fire(s) {
     S.staff = S.staff.filter(x => x !== s);
@@ -527,16 +716,18 @@
       v: 1, money: S.money, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
       tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
       animals: S.animals.map(a => ({ id: a.id, sp: a.sp, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
-        hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name })),
+        hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2) })),
       staff: S.staff.map(s => ({ id: s.id, type: s.type, name: s.name })),
-      litter: S.litter, poop: S.poop, nextId: S.nextId, log: S.log.slice(0, 20), totals: S.totals, today: S.today,
+      litter: S.litter, poop: S.poop, food: S.food, nextId: S.nextId, log: S.log.slice(0, 20), totals: S.totals, today: S.today,
+      history: S.history, comments: S.comments, plushSales: S.plushSales,
     };
   }
   function deserialize(o) {
     if (!o || o.v !== 1 || typeof o.tiles !== 'string' || o.tiles.length !== MW * MH) throw new Error('bad save');
     const s = newState();
     Object.assign(s, { money: o.money, day: o.day, time: o.time || 0, speed: o.speed ?? 1, ticket: o.ticket ?? 15, rep: o.rep ?? 50,
-      litter: o.litter || {}, poop: o.poop || {}, nextId: o.nextId || 1, log: o.log || [], totals: o.totals || s.totals, today: o.today || s.today });
+      litter: o.litter || {}, poop: o.poop || {}, food: o.food || {}, nextId: o.nextId || 1, log: o.log || [], totals: o.totals || s.totals,
+      today: Object.assign(newToday(), o.today || {}), history: o.history || [], comments: o.comments || {}, plushSales: o.plushSales || {} });
     s.tiles = o.tiles.split('').map(Number);
     s.items = o.items.split('').map(ch => CHAR_ITEM[ch] || null);
     s.animals = (o.animals || []).filter(a => Z.SPECIES[a.sp]).map(a => Object.assign({ path: [], wait: 1, phase: 0, facing: 1, ex: -1, moving: false }, a));
@@ -661,23 +852,37 @@
       if (S.items[i] === 'water') A.water(ctx, c.x, c.y, T, clock + i);
       if (S.litter[i]) A.litter(ctx, c.x, c.y, S.litter[i], i);
       if (S.poop[i]) A.poop(ctx, c.x, c.y, S.poop[i], i);
+      if (S.food[i]) Object.entries(S.food[i]).forEach(([sp, n], k) => A.food(ctx, c.x - 6 + k * 9, c.y + 3 - k * 4, DIET[sp].kind, n, i + k));
     }
     // standing things, sorted by their ground line
     const sprites = [];
     const vis = (x, y) => x > view.x - 80 && x < view.x + W / view.zoom + 80 && y > view.y - 40 && y < view.y + H / view.zoom + 120;
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const i = idx(x, y), it = S.items[i];
-      if (it && it !== 'water') { const c = center(i); sprites.push({ y: c.y + 8, f: () => A[it](ctx, c.x, c.y + 8, i) }); }
+      if (!it || it === 'water') continue;
+      const c = center(i);
+      if (it === 'toy') {
+        // the ball rolls and bounces while an animal plays with it
+        const p = (toyPlay[i] || 0) > clock, dx = p ? Math.sin(clock * 4 + i) * 7 : 0, lift = p ? Math.abs(Math.sin(clock * 9)) * 5 : 0;
+        sprites.push({ y: c.y + 8, f: () => A.toy(ctx, c.x + dx, c.y + 8, i, lift) });
+      } else if (BUILDINGS[it]) {
+        sprites.push({ y: c.y + T / 2 - 1, f: () => { if (selected && selected.tile === i && selected.kind === 'building') ring(c.x, c.y + T / 2 - 2, 18); A[it === 'gift' ? 'giftShop' : 'eduCenter'](ctx, c.x, c.y + T / 2 - 1, T); } });
+      } else sprites.push({ y: c.y + 8, f: () => A[it](ctx, c.x, c.y + 8, i) });
     }
     const ent = center(idx(ENT.x, ENT.y));
     sprites.push({ y: ent.y + T / 2, f: () => A.entrance(ctx, ent.x, ent.y + T / 2, T) });
     S.animals.forEach(a => vis(a.x, a.y) && sprites.push({ y: a.y, f: () => {
       if (selected && selected.ref === a) ring(a.x, a.y, 20);
-      Z.draw(ctx, a.sp, a.x, a.y, { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby });
+      Z.draw(ctx, a.sp, a.x, a.y - (a.hop || 0), { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby });
     } }));
-    guests.forEach(g => vis(g.x, g.y) && sprites.push({ y: g.y, f: () => {
+    guests.forEach(g => !g.inside && vis(g.x, g.y) && sprites.push({ y: g.y, f: () => {
       if (selected && selected.ref === g) ring(g.x, g.y, 8);
       A.person(ctx, g.x, g.y, g.phase, g.facing, g.look, g.moving);
+      if (g.plush) {
+        // a little stuffed animal carried at their side
+        const k = g.look.kid ? 0.72 : 1;
+        Z.draw(ctx, g.plush, g.x + 5 * g.facing * k, g.y - 7 * k, { moving: false, scale: 0.075, facing: g.facing });
+      }
     } }));
     S.staff.forEach(s => vis(s.x, s.y) && sprites.push({ y: s.y, f: () => {
       if (selected && selected.ref === s) ring(s.x, s.y, 8);
@@ -707,6 +912,7 @@
     if (tool === 'path') return t === GRASS && !it && exOf[i] < 0;
     if (tool === 'fence') return t === GRASS && !it;
     if (['tree', 'bush', 'water', 'toy'].includes(tool)) return t === GRASS && !it;
+    if (BUILDINGS[tool]) return t === GRASS && !it && exOf[i] < 0 && neighbors(i).some(n => S.tiles[n] === PATH);
     if (tool === 'remove') return (t !== GRASS || !!it) && i !== idx(ENT.x, ENT.y);
     if (tool === 'animal') return exOf[i] >= 0 && approved(toolSpecies, false);
     return true;
@@ -724,7 +930,12 @@
     };
     S.animals.forEach(a => test(a, 'animal', a.baby ? 14 : 22, a.baby ? 6 : 12));
     S.staff.forEach(s => test(s, 'staff', 12, 10));
-    guests.forEach(g => test(g, 'guest', 10, 10));
+    guests.forEach(g => !g.inside && test(g, 'guest', 10, 10));
+    if (!best) {
+      // buildings stand up off their tile, so a click on the roof counts too
+      const i = tileAt(wx, wy), below = tileAt(wx, wy + T * 0.6);
+      [i, below].some(j => { if (j >= 0 && BUILDINGS[S.items[j]]) { best = { kind: 'building', tile: j }; return true; } return false; });
+    }
     return best;
   }
 
@@ -798,6 +1009,7 @@
     const tip = document.getElementById('tip');
     let text = '';
     if (tool === 'path' || tool === 'fence') text = `${tool === 'path' ? 'Path' : 'Fence'} ${money(COST[tool])} per tile, drag to draw`;
+    else if (BUILDINGS[tool]) text = `${BUILDINGS[tool].name} ${money(COST[tool])}, place next to a path`;
     else if (COST[tool]) text = `${tool[0].toUpperCase() + tool.slice(1)} ${money(COST[tool])}`;
     else if (tool === 'remove') text = 'Remove (items refund half)';
     else if (tool === 'animal' && toolSpecies) text = `${Z.SPECIES[toolSpecies].name} ${money(Z.SPECIES[toolSpecies].cost)}, click inside an exhibit`;
@@ -886,6 +1098,46 @@
       $('b-new').onclick = () => { if (confirm('Start over? Your current zoo will be replaced.')) { startWith(newState()); save(true); } };
       return;
     }
+    if (panelMode === 'money') {
+      $('panel-title').textContent = 'Money';
+      const t = S.today, y = S.history[S.history.length - 1] || null;
+      const row = (k, label) => `<tr><td>${label}</td><td>${money(t[k] || 0)}</td><td>${y ? money(y[k] || 0) : '-'}</td></tr>`;
+      const ti = sumOf(t, INCOME), tc = sumOf(t, COSTS), yi = y ? sumOf(y, INCOME) : 0, yc = y ? sumOf(y, COSTS) : 0;
+      el.innerHTML = `<div class="card"><b>Income vs costs</b><canvas id="fin" width="580" height="300" style="width:100%;height:auto;display:block;margin-top:6px"></canvas>
+        <div class="legend"><span><i class="sw solid"></i>Income</span><span><i class="sw hatch"></i>Costs</span><small>Today is still adding up.</small></div></div>
+        <div class="card"><table class="fin"><tr><th></th><th>Today</th><th>${y ? 'Day ' + y.day : 'Yesterday'}</th></tr>
+        <tr class="sec"><td colspan="3">Income</td></tr>${Object.entries(INCOME).map(([k, l]) => row(k, l)).join('')}
+        <tr class="tot"><td>Total income</td><td>${money(ti)}</td><td>${y ? money(yi) : '-'}</td></tr>
+        <tr class="sec"><td colspan="3">Costs</td></tr>${Object.entries(COSTS).map(([k, l]) => row(k, l)).join('')}
+        <tr class="tot"><td>Total costs</td><td>${money(tc)}</td><td>${y ? money(yc) : '-'}</td></tr>
+        <tr class="tot"><td>Profit</td><td>${money(ti - tc)}</td><td>${y ? money(yi - yc) : '-'}</td></tr></table>
+        <small>Staff wages and building upkeep are paid at the end of each day.</small></div>`;
+      drawFinance($('fin'));
+      return;
+    }
+    if (panelMode === 'rating') {
+      $('panel-title').textContent = 'Rating';
+      const r = Math.round(S.rep), word = r >= 80 ? 'Excellent' : r >= 60 ? 'Good' : r >= 40 ? 'Fair' : 'Poor';
+      const avg = S.animals.length ? S.animals.reduce((s, a) => s + a.happy, 0) / S.animals.length : null;
+      const pathTiles = S.tiles.filter(t => t === PATH).length, litter = Object.values(S.litter).reduce((s, n) => s + n, 0);
+      const exTiles = EX.reduce((s, E) => s + E.tiles.length, 0), poop = Object.values(S.poop).reduce((s, n) => s + n, 0);
+      const species = new Set(S.animals.map(a => a.sp)).size;
+      const factors = [
+        ['Animal happiness', avg, avg === null ? 'No animals yet' : `${Math.round(avg)} on average`],
+        ['Clean paths', 100 * Math.max(0, 1 - litter / Math.max(4, pathTiles * 0.25)), `${litter} piece(s) of litter`],
+        ['Clean exhibits', exTiles ? 100 * Math.max(0, 1 - poop / Math.max(3, exTiles * 0.15)) : null, exTiles ? `${poop} dropping(s)` : 'No exhibits yet'],
+        ['Variety', 100 * species / Z.ids.length, `${species} of ${Z.ids.length} species`],
+        ['Value for money', clamp((40 - S.ticket) / 25 * 100, 0, 100), `${money(S.ticket)} ticket`],
+        ['Education center', hasBuilding('edu') ? 100 : 0, hasBuilding('edu') ? `${S.today.eduVisits} visit(s) today` : 'Not built'],
+        ['Gift shop', hasBuilding('gift') ? 100 : 0, hasBuilding('gift') ? `${S.today.plush} stuffed animal(s) sold today` : 'Not built'],
+      ];
+      const said = Object.entries(S.comments).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      el.innerHTML = `<div class="card"><div class="bigrow"><span class="big">${r}</span><span>out of 100<br><b>${word}</b></span></div>
+        <small>The rating is how happy guests feel when they leave. A higher rating brings more guests each day.</small></div>
+        <div class="card"><b>What affects it</b>${factors.map(([n, v, note]) => `<div class="row">${n} ${v === null ? '<span class="bar empty"></span>' : bar(v)}</div><small>${note}</small>`).join('')}</div>
+        <div class="card"><b>What guests are saying</b>${said.length ? said.map(([c, n]) => `<div class="logline">"${escapeHtml(c)}" <small>x${Math.max(1, Math.round(n))}</small></div>`).join('') : '<br><small>No comments yet. Guests share their thoughts on the way out.</small>'}</div>`;
+      return;
+    }
     if (panelMode === 'help') {
       $('panel-title').textContent = 'How to play';
       el.innerHTML = `<ol class="help">
@@ -893,8 +1145,12 @@
         <li>Surround a patch of grass with <b>fences</b> to make an exhibit. It must be fully closed and right beside a path so keepers can get in.</li>
         <li>Add what the animal wants: a <b>tree</b>, <b>bush</b>, <b>water</b>, or <b>toy</b>.</li>
         <li>Buy <b>animals</b> and click them into the exhibit. Give each one enough room.</li>
-        <li>Hire <b>keepers</b> to feed animals and clean exhibits, and <b>janitors</b> to sweep litter.</li>
-        <li>Guests pay a ticket at the gate. Happy animals and clean paths bring more guests and a better rating.</li>
+        <li>Hire <b>keepers</b> to put out food and clean exhibits, and <b>janitors</b> to sweep litter. Food costs money each time a keeper puts it out.</li>
+        <li>Animals play with the <b>toy</b> ball, which makes them a little happier.</li>
+        <li>Guests pay a ticket at the gate. Happy animals and clean paths bring more guests and a better rating. Click the <b>money</b> or <b>rating</b> at the top for details.</li>
+        <li>Build a <b>gift shop</b> next to a path. Guests may buy a stuffed version of their favorite animal.</li>
+        <li>Build an <b>education center</b> next to a path. Guests who visit learn a fact and enjoy the exhibits more.</li>
+        <li>Click an animal to see how it's doing, or to give it a new name.</li>
         <li>Two happy adults of the same species with spare room may have a <b>baby</b>. Babies grow up in ${GROW_DAYS} days.</li>
         <li>Too crowded? Sell an animal to another zoo. You only get back a little of what it cost.</li></ol>
         <p class="muted">Drag to move around, scroll or pinch to zoom. Space pauses. Esc goes back to the look tool.</p>`;
@@ -906,15 +1162,22 @@
         const a = selected.ref; if (!S.animals.includes(a)) { openPanel(null); return; }
         const d = Z.SPECIES[a.sp], p = happinessParts(a, lastExStats.length ? lastExStats : exStats());
         $('panel-title').textContent = `${a.name} the ${d.name.toLowerCase()}`;
-        el.innerHTML = `<div class="card"><b>${a.baby ? `Baby, grows up in ${Math.max(1, Math.ceil(GROW_DAYS - a.age))} day(s)` : 'Adult'}</b>
+        const doing = a.act === 'eat' ? 'Eating' : a.act === 'play' ? 'Playing with the ball' : a.goal === 'food' ? 'Heading to the food' :
+          a.goal === 'toy' ? 'Going to play' : a.hunger > 60 ? 'Hungry, waiting for a keeper' : 'Wandering around';
+        const diet = DIET[a.sp];
+        el.innerHTML = `<div class="card"><b>${a.baby ? `Baby, grows up in ${Math.max(1, Math.ceil(GROW_DAYS - a.age))} day(s)` : 'Adult'}</b><br>
+          <small>${doing}. Eats ${diet.food}, ${money(diet.cost * (a.baby ? 0.5 : 1))} a meal.</small>
           <div class="row">Happiness ${bar(a.happy)} ${Math.round(a.happy)}</div>
           <div class="row">Wants ${bar(p.wants * 100)}</div>
           <small>${p.have.length ? 'Has ' + p.have.join(', ') + '. ' : ''}${p.missing.length ? 'Missing ' + p.missing.join(', ') + '.' : 'Everything it wants!'}</small>
           <div class="row">Space ${bar(p.space * 100)}</div>
           <div class="row">Fed ${bar(p.food * 100)}</div>
           <div class="row">Clean ${bar(p.clean * 100)}</div></div>
+          <div class="card"><b>Name</b><br><input id="nm" maxlength="16" value="${escapeHtml(a.name)}" aria-label="Animal name"> <button id="b-name">Rename</button></div>
           <div class="card"><button id="b-sell">Sell to another zoo for ${money(d.cost * (a.baby ? SELL_BABY : SELL_ADULT))}</button></div>`;
         $('b-sell').onclick = () => sellAnimal(a);
+        $('b-name').onclick = () => renameAnimal(a, $('nm').value);
+        $('nm').onkeydown = e => { if (e.key === 'Enter') renameAnimal(a, $('nm').value); };
       } else if (selected.kind === 'staff') {
         const s = selected.ref; if (!S.staff.includes(s)) { openPanel(null); return; }
         const d = STAFF[s.type];
@@ -926,7 +1189,23 @@
         const g = selected.ref;
         $('panel-title').textContent = 'Guest';
         const mood = g.happy > 70 ? 'Having a great time' : g.happy > 45 ? 'Enjoying the zoo' : g.happy > 25 ? 'A bit bored' : 'Unhappy';
-        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.leaving ? ' Heading home.' : ''}</small></div>`;
+        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
+          ${g.fav ? `Favorite animal: ${Z.SPECIES[g.fav].name.toLowerCase()}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}.` : ''}</small>
+          ${g.learned ? `<br><small>Learned: ${FACTS[g.learned]}</small>` : ''}</div>`;
+      } else if (selected.kind === 'building') {
+        const it = S.items[selected.tile], b = BUILDINGS[it]; if (!b) { openPanel(null); return; }
+        $('panel-title').textContent = b.name;
+        if (it === 'gift') {
+          const sales = Object.entries(S.plushSales).sort((x, y) => y[1] - x[1]);
+          el.innerHTML = `<div class="card"><small>${b.job}. Stuffed animals sell for ${money(PLUSH_PRICE)} and cost the zoo ${money(PLUSH_COST)} each. Upkeep ${money(b.upkeep)}/day.</small></div>
+            <div class="card"><b>Sold today: ${S.today.plush}</b> (${money(S.today.gifts || 0)})<br><small>All-time favorites:</small>
+            ${sales.length ? sales.map(([sp, n]) => `<div class="row">${Z.SPECIES[sp].name} ${bar(100 * n / sales[0][1])} ${n}</div>`).join('') : '<br><small>Nothing sold yet. Guests need to see an animal they like first.</small>'}</div>`;
+        } else {
+          const here = [...new Set(S.animals.map(a => a.sp))];
+          el.innerHTML = `<div class="card"><small>${b.job}. Upkeep ${money(b.upkeep)}/day.</small><br><b>Visitors today: ${S.today.eduVisits}</b></div>
+            <div class="card"><b>What guests learn here</b>${(here.length ? here : Z.ids).map(sp => `<div class="logline"><b>${Z.SPECIES[sp].name}:</b> ${FACTS[sp]}</div>`).join('')}
+            ${here.length ? '' : '<small>Lessons cover your own animals once you have some.</small>'}</div>`;
+        }
       } else {
         const E = EX[exOf[selected.tile]]; if (!E) { openPanel(null); return; }
         const st = (lastExStats.length ? lastExStats : exStats())[E.id];
@@ -935,10 +1214,53 @@
         el.innerHTML = `<div class="card"><b>${E.tiles.length} tiles</b>, room for about ${Math.round(E.tiles.length - st.need)} more tiles of animals<br>
           <small>Animals: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ') || 'none yet'}<br>
           Items: ${Object.entries(E.items).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(', ') || 'none'}<br>
-          Droppings: ${st.poop}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers can\'t get in:</b> run a path right beside the fence.'}</small></div>`;
+          Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers can\'t get in:</b> run a path right beside the fence.'}</small></div>`;
       }
       return;
     }
+  }
+
+  function drawFinance(cv) {
+    const c = cv.getContext('2d'), w = cv.width / 2, h = cv.height / 2;
+    c.setTransform(2, 0, 0, 2, 0, 0); c.fillStyle = '#fff'; c.fillRect(0, 0, w, h);
+    const rows = S.history.slice(-9).map(r => ({ label: 'D' + r.day, inc: sumOf(r, INCOME), cost: Math.max(0, sumOf(r, COSTS)) }));
+    rows.push({ label: 'Now', inc: sumOf(S.today, INCOME), cost: Math.max(0, sumOf(S.today, COSTS)), partial: true });
+    const vals = rows.flatMap(r => [r.inc, r.cost]).sort((a, b) => b - a);
+    const clipped = vals[1] > 0 && vals[0] > vals[1] * 3;             // one huge day (like opening construction)
+    const max = Math.max(100, clipped ? vals[1] * 1.25 : vals[0]);
+    const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw), top = step * 4;
+    const L = 40, B = 18, Tp = 6, R = 4, ph = h - B - Tp, pw = w - L - R;
+    const short = v => v >= 1000 ? `$${+(v / 1000).toFixed(v % 1000 ? 1 : 0)}k` : `$${Math.round(v)}`;
+    c.font = '10px "Courier New", monospace'; c.textBaseline = 'middle';
+    for (let k = 0; k <= 4; k++) {
+      const v = top * k / 4, yy = Tp + ph - ph * k / 4;
+      c.strokeStyle = k ? '#ddd' : '#111'; c.lineWidth = 1; c.beginPath(); c.moveTo(L, yy); c.lineTo(w - R, yy); c.stroke();
+      c.fillStyle = '#555'; c.textAlign = 'right'; c.fillText(short(v), L - 4, yy);
+    }
+    const gw = pw / rows.length, bw = Math.min(12, (gw - 6) / 2);
+    rows.forEach((r, k) => {
+      const gx = L + gw * k + gw / 2;
+      const hi = ph * Math.min(r.inc, top) / top, hc = ph * Math.min(r.cost, top) / top;
+      c.setLineDash(r.partial ? [3, 2] : []);
+      c.fillStyle = '#111'; c.fillRect(gx - bw - 1, Tp + ph - hi, bw, hi);
+      if (r.partial) { c.strokeStyle = '#111'; c.strokeRect(gx - bw - 1, Tp + ph - hi, bw, hi); }
+      c.save(); c.beginPath(); c.rect(gx + 1, Tp + ph - hc, bw, hc); c.clip();
+      c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#111'; c.lineWidth = 1; c.setLineDash([]);
+      for (let d = -ph; d < ph; d += 4) { c.beginPath(); c.moveTo(gx + 1, Tp + ph - hc + d); c.lineTo(gx + 1 + bw, Tp + ph - hc + d - bw); c.stroke(); }
+      c.restore();
+      c.setLineDash(r.partial ? [3, 2] : []); c.lineWidth = 1.2; c.strokeStyle = '#111'; c.strokeRect(gx + 1, Tp + ph - hc, bw, hc); c.setLineDash([]);
+      [[r.inc, gx - bw - 1], [r.cost, gx + 1]].forEach(([v, bx]) => {
+        if (v <= top) return;
+        // break mark and the real value for a bar that runs off the top
+        c.fillStyle = '#fff'; c.beginPath(); c.moveTo(bx - 1, Tp + 16); c.lineTo(bx + bw + 1, Tp + 12); c.lineTo(bx + bw + 1, Tp + 16); c.lineTo(bx - 1, Tp + 20); c.closePath(); c.fill();
+        const label = short(v); c.font = 'bold 9px "Courier New", monospace'; c.textAlign = 'left';
+        const lx = Math.min(w - R - c.measureText(label).width - 2, bx + bw + 3);
+        c.fillStyle = '#fff'; c.fillRect(lx - 1, Tp + 1, c.measureText(label).width + 2, 10);
+        c.fillStyle = '#111'; c.fillText(label, lx, Tp + 6); c.font = '10px "Courier New", monospace';
+      });
+      c.fillStyle = '#111'; c.textAlign = 'center'; c.fillText(r.label, gx, h - B / 2 + 1);
+    });
   }
 
   function renderAll() { renderHud(); renderNews(); renderPanel(); setSpeed(S.speed); }
@@ -950,6 +1272,8 @@
     setTool(t);
   });
   $('b-staff').onclick = () => openPanel(panelMode === 'staff' ? null : 'staff');
+  $('s-money').onclick = () => openPanel(panelMode === 'money' ? null : 'money');
+  $('s-rating').onclick = () => openPanel(panelMode === 'rating' ? null : 'rating');
   $('b-menu').onclick = () => openPanel(panelMode === 'menu' ? null : 'menu');
   $('b-help').onclick = () => openPanel(panelMode === 'help' ? null : 'help');
   $('panel-close').onclick = () => { if (tool === 'animal') setTool('look'); openPanel(null); selected = null; };
@@ -972,14 +1296,18 @@
     for (let k = 0; k < steps; k++) tick(dt / steps);
     render();
     hudT += dt; saveT += dt;
-    if (hudT > 0.25) { hudT = 0; renderHud(); if (panelMode === 'info' || panelMode === 'staff') renderPanelLive(); }
+    if (hudT > 0.25) { hudT = 0; renderHud(); if (['info', 'staff', 'money', 'rating'].includes(panelMode)) renderPanelLive(); }
     if (panelMode === 'shop') drawShopPreviews();
     if (saveT > 30) { saveT = 0; save(true); }
     requestAnimationFrame(frame);
   }
   // refresh info bars without rebuilding buttons mid-click
   let liveT = 0;
-  function renderPanelLive() { liveT++; if (liveT % 4 === 0 && !document.querySelector('#panel button:active')) renderPanel(); }
+  function renderPanelLive() {
+    liveT++;
+    const typing = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.closest('#panel');
+    if (liveT % 4 === 0 && !typing && !document.querySelector('#panel button:active')) renderPanel();
+  }
   function drawShopPreviews() {
     document.querySelectorAll('canvas[data-prev]').forEach(cv => {
       const c = cv.getContext('2d'), id = cv.dataset.prev, ok = approved(id, false);
@@ -1004,5 +1332,5 @@
   requestAnimationFrame(frame);
 
   // small hook for automated testing
-  window.__zoo = { get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal };
+  window.__zoo = { get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal };
 })();

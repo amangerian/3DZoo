@@ -55,15 +55,87 @@
       });
     },
 
-    toy(c, x, y, t = 0) {
-      Art.shadow(c, x, y, 7);
-      const bob = Math.abs(Math.sin(t * 1.5)) * 0;
-      ell(c, x, y - 6 - bob, 6, 6); fillStroke(c, WHITE, 1.8);
-      c.save(); ell(c, x, y - 6 - bob, 6, 6); c.clip();
-      c.fillStyle = INK; c.beginPath(); c.moveTo(x - 7, y - 9); c.quadraticCurveTo(x, y - 4, x + 7, y - 9);
-      c.lineTo(x + 7, y - 6); c.quadraticCurveTo(x, y - 1, x - 7, y - 6); c.closePath(); c.fill();
+    toy(c, x, y, seed = 0, lift = 0) {
+      Art.shadow(c, x, y, 7 - lift * 0.4);
+      const by = y - 6 - lift, spin = lift * 0.6;
+      ell(c, x, by, 6, 6); fillStroke(c, WHITE, 1.8);
+      c.save(); ell(c, x, by, 6, 6); c.clip(); c.translate(x, by); c.rotate(spin);
+      c.fillStyle = INK; c.beginPath(); c.moveTo(-7, -3); c.quadraticCurveTo(0, 2, 7, -3);
+      c.lineTo(7, 0); c.quadraticCurveTo(0, 5, -7, 0); c.closePath(); c.fill();
       c.restore();
-      ell(c, x - 2, y - 9 - bob, 1.4, 1); c.fillStyle = WHITE; c.fill();
+      ell(c, x - 2, by - 3, 1.4, 1); c.fillStyle = WHITE; c.fill();
+    },
+
+    // A small pile of animal food on the ground. kind: meat, hay, leaves, fish, fruit, shrimp.
+    food(c, x, y, kind, n, seed = 0) {
+      const count = Math.min(n, 3);
+      for (let k = 0; k < count; k++) {
+        const px = x + (k - (count - 1) / 2) * 5, py = y + (k % 2) * 2;
+        c.save(); c.translate(px, py); c.rotate((rnd(seed + k) - 0.5) * 0.8);
+        if (kind === 'meat') {
+          line(c, -1, 0, 4, -2, 2, '#fff'); line(c, -1, 0, 4, -2, 0.8, INK);
+          ell(c, -3, 0.5, 3.6, 2.6); fillStroke(c, '#888', 1);
+        } else if (kind === 'hay') {
+          c.strokeStyle = '#777'; c.lineWidth = 1;
+          for (let j = -3; j <= 3; j++) { c.beginPath(); c.moveTo(j * 1.2 - 3, 1.5); c.lineTo(j * 1.6 + 3, -2.5); c.stroke(); }
+        } else if (kind === 'leaves') {
+          line(c, -5, 1, 5, -1, 1, '#555');
+          [-3, 0, 3].forEach((dx, j) => { ell(c, dx, -1.5 + (j % 2) * 3, 2.4, 1.3, 0.5); fillStroke(c, '#bbb', 0.8); });
+        } else if (kind === 'fish') {
+          ell(c, 0, 0, 4.2, 2); fillStroke(c, '#ddd', 1);
+          c.beginPath(); c.moveTo(-4, 0); c.lineTo(-7, -2.2); c.lineTo(-7, 2.2); c.closePath(); fillStroke(c, '#ddd', 1);
+          ell(c, 2.4, -0.4, 0.5, 0.5); c.fillStyle = INK; c.fill();
+        } else if (kind === 'fruit') {
+          ell(c, -1.5, 0, 2.4, 2.4); fillStroke(c, '#ccc', 1);
+          c.beginPath(); c.arc(2.5, -1, 3.2, 0.3, 2.2); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke();
+          c.beginPath(); c.arc(2.5, -1, 3.2, 0.35, 2.15); c.lineWidth = 1; c.strokeStyle = '#eee'; c.stroke();
+        } else {
+          [[-2, 0], [1, -1], [3, 1], [0, 1.5]].forEach(([dx, dy]) => { ell(c, dx, dy, 1.2, 1.2); c.fillStyle = '#666'; c.fill(); });
+        }
+        c.restore();
+      }
+    },
+
+    // A small shop with a striped awning and a sign. (x, y) is the front edge of its tile.
+    giftShop(c, x, y, T) {
+      const w = T * 0.84, h = 22;
+      Art.shadow(c, x, y, w * 0.55);
+      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, WHITE, 2);
+      // striped awning
+      c.beginPath(); c.moveTo(x - w / 2 - 3, y - h); c.lineTo(x + w / 2 + 3, y - h); c.lineTo(x + w / 2 + 1, y - h + 7); c.lineTo(x - w / 2 - 1, y - h + 7); c.closePath();
+      fillStroke(c, WHITE, 1.6);
+      c.save(); c.clip(); c.fillStyle = INK;
+      for (let k = -w / 2 - 3; k < w / 2 + 3; k += 6) c.fillRect(x + k, y - h, 3, 7);
+      c.restore();
+      c.beginPath(); c.rect(x - w / 2 - 3, y - h, w + 6, 7); c.lineWidth = 1.6; c.strokeStyle = INK; c.stroke();
+      // door and window with a tiny bear in it
+      c.beginPath(); c.rect(x - 3.5, y - 10, 7, 10); fillStroke(c, '#999', 1.4);
+      c.beginPath(); c.rect(x + 6, y - 12, 6, 6); fillStroke(c, '#eee', 1.2);
+      ell(c, x + 9, y - 8.5, 1.8, 1.8); c.fillStyle = INK; c.fill(); ell(c, x + 9, y - 10.6, 1.3, 1.3); c.fill();
+      c.beginPath(); c.rect(x - 12, y - 12, 6, 6); fillStroke(c, '#eee', 1.2);
+      // sign
+      c.beginPath(); c.rect(x - 13, y - h - 10, 26, 9); fillStroke(c, INK, 1);
+      c.fillStyle = WHITE; c.font = 'bold 7px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('GIFTS', x, y - h - 5.3);
+    },
+
+    // A schoolhouse-style building with a peaked roof and a book on the sign.
+    eduCenter(c, x, y, T) {
+      const w = T * 0.86, h = 18;
+      Art.shadow(c, x, y, w * 0.55);
+      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, WHITE, 2);
+      // columns
+      [-9, -3, 3, 9].forEach(dx => line(c, x + dx, y - h + 3, x + dx, y - 2, 1.6, '#777'));
+      c.beginPath(); c.moveTo(x - w / 2 - 3, y - h); c.lineTo(x, y - h - 12); c.lineTo(x + w / 2 + 3, y - h); c.closePath();
+      fillStroke(c, '#ccc', 1.8);
+      // open book in the gable
+      c.beginPath(); c.moveTo(x, y - h - 2); c.lineTo(x - 5, y - h - 4); c.lineTo(x - 5, y - h - 8); c.lineTo(x, y - h - 6); c.closePath(); fillStroke(c, WHITE, 1);
+      c.beginPath(); c.moveTo(x, y - h - 2); c.lineTo(x + 5, y - h - 4); c.lineTo(x + 5, y - h - 8); c.lineTo(x, y - h - 6); c.closePath(); fillStroke(c, WHITE, 1);
+      c.beginPath(); c.rect(x - 4, y - 9, 8, 9); fillStroke(c, '#999', 1.4);
+      c.beginPath(); c.rect(x - 15, y - h - 24, 30, 9); fillStroke(c, INK, 1);
+      c.fillStyle = WHITE; c.font = 'bold 7px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('LEARN', x, y - h - 19.3);
+      line(c, x, y - h - 15, x, y - h - 12, 1.2, INK);
     },
 
     litter(c, x, y, n, seed) {

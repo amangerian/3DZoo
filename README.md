@@ -10,8 +10,14 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Fences** make exhibits. An exhibit is grass that's fully closed in by fence, with a path running right beside it so keepers can get in.
 - **Items**: tree, bush, water, and toy. Each species wants a few of these in its exhibit.
 - **Animals** need what they want, enough room, food, and a clean exhibit. All four feed their happiness.
-- **Keepers** feed animals and clean exhibits. **Janitors** sweep litter off the paths. Both are paid daily wages.
+- **Keepers** carry food into each exhibit and clean up droppings. **Janitors** sweep litter off the paths. Both are paid daily wages.
+- **Food** costs money every time a keeper puts it out, and each species has its own diet and price per meal. Animals walk over to the food to eat it.
+- **Toys**: animals walk over and play with the ball, which gives them a small happiness boost.
 - **Guests** pay a ticket at the gate. That's the zoo's main income. Happy animals and clean paths raise the rating, and a higher rating brings more guests. Higher ticket prices bring fewer guests.
+- **Gift shop** (next to a path): guests may buy a stuffed version of their favorite animal and carry it around the zoo.
+- **Education center** (next to a path): guests who stop in learn a fact about one of your animals and enjoy the exhibits more afterward.
+- **Money and rating**: click the money at the top for an income vs costs chart, or the rating for what's raising or lowering it and what guests are saying.
+- **Names**: click an animal to rename it.
 - **Babies**: two happy adults of the same species, with room to spare, may have a baby at the end of a day. Babies grow up in 4 days and draw extra attention from guests.
 - **Selling**: an animal can go to another zoo, but you only get back 15% of its price (10% for a baby).
 
@@ -46,8 +52,8 @@ const APPROVED = {
 | `index.html` | The game page and its layout |
 | `approve.html` | Animal approval sheet |
 | `animals.js` | Animal art, walk cycles, species data, approvals |
-| `world-art.js` | Trees, bushes, water, toys, people, litter, entrance |
-| `game.js` | Map, exhibits, guests, staff, money, breeding, saving |
+| `world-art.js` | Trees, bushes, water, toys, food, buildings, people, litter, entrance |
+| `game.js` | Map, exhibits, guests, staff, feeding, money, breeding, saving |
 
 There's no build step and nothing to install.
 

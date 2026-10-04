@@ -15,6 +15,22 @@
   .stat small { font-size:10px; color:var(--mid); text-transform:uppercase; letter-spacing:1px; }
   .stat b { font-size:15px; }
   #money.neg { text-decoration:underline; }
+  button.stat.click { border:none; background:none; padding:0; text-align:left; font:inherit; cursor:pointer; }
+  button.stat.click b { text-decoration:underline dotted; text-underline-offset:3px; }
+  button.stat.click:hover { background:var(--soft); }
+  .legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:12px; margin-top:6px; }
+  .sw { display:inline-block; width:12px; height:12px; border:1.5px solid var(--ink); vertical-align:-2px; margin-right:4px; }
+  .sw.solid { background:var(--ink); }
+  .sw.hatch { background:repeating-linear-gradient(135deg, var(--ink) 0 1px, #fff 1px 4px); }
+  table.fin { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px; }
+  table.fin td, table.fin th { padding:2px 4px; text-align:right; }
+  table.fin td:first-child, table.fin th:first-child { text-align:left; }
+  table.fin tr.sec td { font-weight:bold; padding-top:8px; border-bottom:1.5px solid var(--ink); }
+  table.fin tr.tot td { font-weight:bold; border-top:1px solid var(--ink); }
+  .bigrow { display:flex; gap:12px; align-items:center; margin-bottom:6px; }
+  .big { font-size:40px; font-weight:bold; line-height:1; }
+  .bar.empty { border-style:dashed; }
+  #panel input { font:inherit; border:2px solid var(--ink); padding:4px 6px; width:160px; margin-top:6px; }
   .clock { width:60px; height:5px; border:1px solid var(--ink); margin-top:2px; }
   #clock { height:100%; background:var(--ink); }
   .spacer { flex:1; }
@@ -71,10 +87,10 @@
 <div id="app">
   <header>
     <h1>3D ZOO</h1>
-    <div class="stat"><small>Money</small><b id="money">$0</b></div>
+    <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
-    <div class="stat"><small>Rating</small><b id="rating">50</b></div>
+    <button class="stat click" id="s-rating" title="See what affects your rating"><small>Rating</small><b id="rating">50</b></button>
     <div class="stat"><small>Ticket</small><b id="ticket">$15</b></div>
     <div class="spacer"></div>
     <div id="speed">
@@ -103,6 +119,9 @@
     <button data-tool="bush">Bush<small>$60</small></button>
     <button data-tool="water">Water<small>$200</small></button>
     <button data-tool="toy">Toy<small>$120</small></button>
+    <span class="sep"></span>
+    <button data-tool="gift">Gift shop<small>$2,500</small></button>
+    <button data-tool="edu">Education<small>$4,000</small></button>
     <span class="sep"></span>
     <button data-tool="animal">Animals<small>buy</small></button>
     <button id="b-staff">Staff<small>hire</small></button>
