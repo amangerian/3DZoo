@@ -165,8 +165,9 @@
       c.fillText('3D ZOO', x, y - 43.2);
     },
 
-    // People are tiny side-view figures with swinging arms and legs.
-    person(c, x, y, ph, facing, look, moving = true) {
+    // People are tiny figures with swinging arms and legs. view: 'side', 'front' or 'back'.
+    person(c, x, y, ph, facing, look, moving = true, view = 'side') {
+      if (view !== 'side') return Art.personFB(c, x, y, ph, look, moving, view === 'front');
       const k = look.kid ? 0.72 : 1;
       c.save(); c.translate(x, y); c.scale(k * facing, k);
       const sw = moving ? Math.sin(ph) * 0.55 : 0;
@@ -197,6 +198,44 @@
       else if (look.hat === 'safari') { c.beginPath(); c.arc(0.5, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, '#ddd', 1.2); line(c, -5, -23, 6, -23, 1.6, INK); }
       else if (look.hat === 'hair') { c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke(); }
       else if (look.hat === 'bun') { ell(c, -3, -24.5, 2, 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2; c.stroke(); }
+      c.restore();
+    },
+
+    // A person seen from the front (walking toward the camera) or from behind.
+    personFB(c, x, y, ph, look, moving, front) {
+      const k = look.kid ? 0.72 : 1;
+      c.save(); c.translate(x, y); c.scale(k, k);
+      Art.shadow(c, 0, 0, 5);
+      const step = s => (moving ? Math.max(0, Math.sin(ph + (s > 0 ? Math.PI : 0))) * 2.5 : 0);
+      [-1, 1].forEach(s => line(c, s * 1.8, -9, s * 1.8, -step(s), 2.6, INK));
+      // body
+      c.beginPath();
+      if (look.dress) { c.moveTo(-3.5, -17); c.lineTo(3.5, -17); c.lineTo(5.5, -8); c.lineTo(-5.5, -8); c.closePath(); }
+      else c.rect(-4.5, -17.5, 9, 9.5);
+      fillStroke(c, look.shirt, 1.4);
+      if (look.role === 'keeper') line(c, -4.5, -14, 4.5, -14, 1, INK);
+      // arms swing forward and back, which from here looks like a small up-and-down
+      [-1, 1].forEach(s => {
+        const sw = moving ? Math.sin(ph + (s > 0 ? 0 : Math.PI)) * 1.5 : 0;
+        line(c, s * 4.8, -16.5, s * 5.6, -10.5 - sw, 2.2, INK);
+      });
+      if (look.role === 'janitor') {
+        line(c, 6, -18, 6.5, -2, 1.6, '#555');
+        c.beginPath(); c.moveTo(3.5, -2); c.lineTo(9.5, -2); c.lineTo(8, 1); c.lineTo(5, 1); c.closePath(); fillStroke(c, '#bbb', 1);
+      } else if (look.role === 'keeper') {
+        c.beginPath(); c.moveTo(-8, -10); c.lineTo(-3.5, -10); c.lineTo(-4, -5.5); c.lineTo(-7.5, -5.5); c.closePath(); fillStroke(c, '#999', 1);
+      }
+      // head + hair/hat
+      ell(c, 0, -21.5, 3.6, 3.6); fillStroke(c, WHITE, 1.4);
+      const dark = (a0, a1) => { c.beginPath(); c.arc(0, -21.5, 3.8, a0, a1); c.closePath(); c.fillStyle = INK; c.fill(); };
+      if (front) { [-1.3, 1.3].forEach(ex => { ell(c, ex, -21.5, 0.6, 0.6); c.fillStyle = INK; c.fill(); }); }
+      if (look.hat === 'cap') { dark(Math.PI, 0); if (front) line(c, -4, -21.6, 4, -21.6, 1.6, INK); }
+      else if (look.hat === 'safari') { c.beginPath(); c.arc(0, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, '#ddd', 1.2); line(c, -5.5, -23, 5.5, -23, 1.6, INK); }
+      else if (look.hat === 'hair' || look.hat === 'bun') {
+        if (front) { c.beginPath(); c.arc(0, -21.8, 3.9, Math.PI * 1.05, Math.PI * 1.95); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke(); }
+        else dark(Math.PI * 0.9, Math.PI * 2.1);
+        if (look.hat === 'bun') { ell(c, 0, -26, 2, 2); c.fillStyle = INK; c.fill(); }
+      }
       c.restore();
     },
 

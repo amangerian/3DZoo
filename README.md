@@ -36,8 +36,9 @@ const APPROVED = {
 
 - If an adult isn't approved, it shows as "Awaiting approval" in the shop and can't be bought.
 - If a baby isn't approved, that species can't have babies.
+- `adultFrontBack` and `babyFrontBack` cover the views of an animal walking toward and away from the camera. If one isn't approved, that animal stays side-on whichever way it walks.
 
-`approve.html` shows every animal walking with its baby, plus its current approval status.
+`approve.html` shows every animal walking with its baby, side-on and toward and away from the camera, plus its current approval status.
 
 ## Saving
 

@@ -219,7 +219,9 @@
     let moved = 0;
     while (dist > 0 && e.path.length) {
       const p = e.path[0], dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
-      if (Math.abs(dx) > 0.5) e.facing = dx > 0 ? 1 : -1;
+      // mostly up or down the screen: face away from or toward the camera; otherwise side-on
+      if (Math.abs(dy) > Math.abs(dx) * 1.2 && d > 0.5) e.view = dy > 0 ? 'front' : 'back';
+      else if (Math.abs(dx) > 0.5) { e.view = 'side'; e.facing = dx > 0 ? 1 : -1; }
       if (d <= dist) { e.x = p.x; e.y = p.y; e.path.shift(); dist -= d; moved += d; }
       else { e.x += dx / d * dist; e.y += dy / d * dist; moved += dist; dist = 0; }
     }
@@ -873,11 +875,11 @@
     sprites.push({ y: ent.y + T / 2, f: () => A.entrance(ctx, ent.x, ent.y + T / 2, T) });
     S.animals.forEach(a => vis(a.x, a.y) && sprites.push({ y: a.y, f: () => {
       if (selected && selected.ref === a) ring(a.x, a.y, 20);
-      Z.draw(ctx, a.sp, a.x, a.y - (a.hop || 0), { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby });
+      Z.draw(ctx, a.sp, a.x, a.y - (a.hop || 0), { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby, view: animalView(a) });
     } }));
     guests.forEach(g => !g.inside && vis(g.x, g.y) && sprites.push({ y: g.y, f: () => {
       if (selected && selected.ref === g) ring(g.x, g.y, 8);
-      A.person(ctx, g.x, g.y, g.phase, g.facing, g.look, g.moving);
+      A.person(ctx, g.x, g.y, g.phase, g.facing, g.look, g.moving, g.view || 'side');
       if (g.plush) {
         // a little stuffed animal carried at their side
         const k = g.look.kid ? 0.72 : 1;
@@ -888,7 +890,7 @@
       if (selected && selected.ref === s) ring(s.x, s.y, 8);
       if (!s.look) s.look = A.staffLook(s.type);
       const ph = s.workT > 0 ? clock * 9 : s.phase;
-      A.person(ctx, s.x, s.y, ph, s.facing, s.look, s.moving || s.workT > 0);
+      A.person(ctx, s.x, s.y, ph, s.facing, s.look, s.moving || s.workT > 0, s.workT > 0 ? 'side' : (s.view || 'side'));
     } }));
     sprites.sort((a, b) => a.y - b.y).forEach(s => s.f());
     // hover preview
@@ -902,6 +904,12 @@
       const E = EX[exOf[selected.tile]];
       if (E) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; E.tiles.forEach(i => ctx.fillRect(tx(i) * T, ty(i) * T, T, T)); }
     }
+  }
+  // Front and back views only show once Alex has approved them for that animal (and age).
+  function animalView(a) {
+    if (a.act === 'play' || !a.view || a.view === 'side') return 'side';
+    const ok = Z.APPROVED[a.sp] && Z.APPROVED[a.sp][a.baby ? 'babyFrontBack' : 'adultFrontBack'];
+    return ok ? a.view : 'side';
   }
   function ring(x, y, r) {
     ctx.save(); ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = '#111';
