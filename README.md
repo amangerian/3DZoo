@@ -34,6 +34,7 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Education center** (next to a path): guests who stop in learn a fact about one of your animals and enjoy the exhibits more afterward.
 - **Money and rating**: click the money at the top for an income vs costs chart, or the rating for what's raising or lowering it and what guests are saying.
 - **Names**: click an animal to rename it.
+- **Moving animals**: click an animal, choose "Move to another exhibit," then click where it should go. A keeper walks it over (tank animals are moved straight across by the aquarium team). The same rules apply as when buying: it has to be an exhibit the animal can live in.
 - **Babies**: two happy adults of the same species, with room to spare, may have a baby at the end of a day. Babies grow up in 4 days and draw extra attention from guests.
 - **Selling**: an animal can go to another zoo, but you only get back 15% of its price (10% for a baby).
 
@@ -81,3 +82,22 @@ There's no build step and nothing to install.
 2. Choose **Add file → Upload files**. Drag in all six files (`index.html`, `approve.html`, `animals.js`, `world-art.js`, `game.js`, `README.md`) together, then commit. They all go at the top level, with no folders.
 3. Go to **Settings → Pages**. Under **Build and deployment**, pick **Deploy from a branch**, then `main` and `/ (root)`, and save.
 4. After a minute the game is live at `https://<your-username>.github.io/<repo-name>/`.
+
+## Version history
+
+The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
+
+- **v1.1** (Oct 8, 2026)
+  - The Menu no longer estimates how many guests a ticket price will bring. Finding the right price is up to the player.
+- **v1.0** (Oct 8, 2026)
+  - Bottom bar split into Build, Animals, and Staff tabs.
+  - Zoo stars (1 to 5) unlock animals, buildings, and color. Goals include rating, guests per day, guests in the zoo at once, species, and babies. Starting money $15,000.
+  - Color fades in as stars are earned: plants, then water, then paths, fences, and buildings.
+  - Guests stop at fences to watch animals, and explore toward exhibits they haven't seen yet. Up to 1,000 guests at once.
+  - New animals: hippo, rhino, ostrich, sea hawk, polar bear, anaconda, parrot, toucan, great horned owl, bald eagle, shark, orca, plus three secret animals.
+  - Snow floors, aquarium tanks with glass walls, and aviaries with mesh fencing.
+  - Oak, acacia, palm, and pine trees; ball, exercise wheel, and scratching post.
+  - Mixed exhibits for species that live together in the wild.
+  - Escaped animals are rounded up by keepers; animals can be moved between exhibits.
+  - Staff training up to skill 5, with ranks and new uniforms at each level.
+  - Fixed animals walking through fences.

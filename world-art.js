@@ -257,10 +257,16 @@
       else { c.rect(-3.5, -17.5, 7, 9.5); }
       fillStroke(c, look.shirt, 1.4);
       if (look.role === 'keeper') { c.beginPath(); c.moveTo(-3.5, -14); c.lineTo(3.5, -14); c.lineWidth = 1; c.strokeStyle = INK; c.stroke(); }
+      Art.uniform(c, look, 'side');
       // arm in front, maybe holding a tool
       const ax = Math.sin(sw) * 6, ay = -16 + Math.cos(sw) * 6;
       line(c, 0, -16, ax, ay, 2.2, INK);
-      if (look.role === 'janitor') {
+      if (look.role === 'janitor' && (look.skill || 1) >= 4) {
+        // a wide push broom
+        line(c, ax - 1, ay - 7, ax + 6, ay + 9, 1.8, '#555');
+        c.beginPath(); c.rect(ax + 1, ay + 8, 11, 3); fillStroke(c, '#888', 1);
+        for (let k = 0; k < 5; k++) line(c, ax + 2 + k * 2.2, ay + 11, ax + 2 + k * 2.2, ay + 13, 0.9, INK);
+      } else if (look.role === 'janitor') {
         line(c, ax - 1, ay - 7, ax + 5, ay + 9, 1.6, '#555');
         c.beginPath(); c.moveTo(ax + 2, ay + 8); c.lineTo(ax + 9, ay + 7); c.lineTo(ax + 7, ay + 12); c.closePath(); fillStroke(c, '#bbb', 1);
       } else if (look.role === 'keeper') {
@@ -273,6 +279,7 @@
       else if (look.hat === 'safari') { c.beginPath(); c.arc(0.5, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, '#ddd', 1.2); line(c, -5, -23, 6, -23, 1.6, INK); }
       else if (look.hat === 'hair') { c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke(); }
       else if (look.hat === 'bun') { ell(c, -3, -24.5, 2, 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2; c.stroke(); }
+      Art.headGear(c, look, 'side');
       c.restore();
     },
 
@@ -289,6 +296,7 @@
       else c.rect(-4.5, -17.5, 9, 9.5);
       fillStroke(c, look.shirt, 1.4);
       if (look.role === 'keeper') line(c, -4.5, -14, 4.5, -14, 1, INK);
+      Art.uniform(c, look, front ? 'front' : 'back');
       // arms swing forward and back, which from here looks like a small up-and-down
       [-1, 1].forEach(s => {
         const sw = moving ? Math.sin(ph + (s > 0 ? 0 : Math.PI)) * 1.5 : 0;
@@ -311,6 +319,7 @@
         else dark(Math.PI * 0.9, Math.PI * 2.1);
         if (look.hat === 'bun') { ell(c, 0, -26, 2, 2); c.fillStyle = INK; c.fill(); }
       }
+      Art.headGear(c, look, front ? 'front' : 'back');
       c.restore();
     },
 
@@ -323,10 +332,59 @@
         hat: ['none', 'cap', 'hair', 'bun', 'hair'][Math.floor(r() * 5)],
       };
     },
-    staffLook(role) {
+    staffLook(role, skill = 1) {
       return role === 'janitor'
-        ? { shirt: '#555', hat: 'cap', role: 'janitor' }
-        : { shirt: '#eee', hat: 'safari', role: 'keeper' };
+        ? { shirt: '#555', hat: 'cap', role: 'janitor', skill }
+        : { shirt: '#eee', hat: 'safari', role: 'keeper', skill };
+    },
+
+    // Uniform pieces earned with training. view: 'side', 'front' or 'back'. Body is the 9.5-tall box above the legs.
+    uniform(c, look, view) {
+      const n = look.skill || 1, side = view === 'side', w = side ? 3.5 : 4.5;
+      const star = (x, y, r) => { c.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+        c.closePath(); fillStroke(c, B('#ffffff', '#f2c53d'), 0.6); };
+      if (look.role === 'janitor') {
+        const vis = B('#ffffff', '#f6e04a');
+        if (n >= 3) { c.beginPath(); c.rect(-w, -17.5, w * 2, 9.5); fillStroke(c, B('#7a7a7a', '#f07a22'), 1.4); }     // reflective vest
+        if (n >= 2) line(c, -w + 0.5, -13.5, w - 0.5, -13.5, 1.5, vis);
+        if (n >= 3) { line(c, -w + 0.5, -10.5, w - 0.5, -10.5, 1.5, vis); if (view === 'back') { line(c, -w + 1, -17, w - 1, -9, 1.1, vis); line(c, w - 1, -17, -w + 1, -9, 1.1, vis); } }
+        if (n >= 5 && view !== 'back') star(side ? 1.5 : -2, -15.6, 1.8);
+      } else {
+        const vest = B('#b5b5b5', '#b49a5c');
+        if (n >= 2) {
+          if (side) { c.beginPath(); c.rect(-3.5, -17.5, 4.2, 9.5); fillStroke(c, vest, 1.1); }
+          else if (view === 'front') [-1, 1].forEach(s => { c.beginPath(); c.rect(s > 0 ? 1.4 : -4.5, -17.5, 3.1, 9.5); fillStroke(c, vest, 1.1); });
+          else { c.beginPath(); c.rect(-4.5, -17.5, 9, 9.5); fillStroke(c, vest, 1.1); }
+          if (view !== 'back') { c.beginPath(); c.rect(side ? -2.6 : -3.9, -12.6, 2, 1.8); c.lineWidth = 0.7; c.strokeStyle = INK; c.stroke(); }
+        }
+        if (n >= 3 && view !== 'back') {
+          line(c, side ? 0 : -2.5, -17.3, side ? 1.8 : 0, -14.5, 0.7, INK); line(c, side ? 3 : 2.5, -17.3, side ? 2.6 : 0, -14.5, 0.7, INK);
+          ell(c, side ? 1.8 : -0.9, -14, 1.1, 1.1); c.fillStyle = INK; c.fill(); ell(c, side ? 3 : 0.9, -14, 1.1, 1.1); c.fill();
+          if (!side) { c.beginPath(); c.rect(2, -16.6, 2, 1.3); fillStroke(c, '#ffffff', 0.6); }                       // name tag
+        }
+        if (n >= 4) { c.beginPath(); c.moveTo(side ? -1 : -3, -17.5); c.lineTo(side ? 3.5 : 3, -17.5); c.lineTo(side ? 1.5 : 0, -15); c.closePath(); fillStroke(c, B('#3a3a3a', '#c0392b'), 0.8); }
+        if (n >= 5) {
+          if (view !== 'back') star(side ? -1.5 : 2.6, -12.2, 1.6);
+          c.beginPath(); c.rect(side ? -4.8 : 3.8, -11.5, 2.2, 3); c.fillStyle = INK; c.fill();                                // radio
+          line(c, side ? -4 : 4.6, -11.5, side ? -4 : 4.6, -14.5, 0.8, INK);
+        }
+      }
+    },
+    headGear(c, look, view) {
+      const n = look.skill || 1, side = view === 'side', cx = side ? 0.5 : 0;
+      if (look.role === 'janitor') {
+        if (n >= 5) {                                                                                        // head custodian's white cap
+          c.beginPath(); c.arc(cx, -22.5, 3.8, Math.PI, 0); c.closePath(); fillStroke(c, '#ffffff', 1.2);
+          if (side) line(c, 3.5, -22.5, 7, -22.5, 1.6, INK); else if (view === 'front') line(c, -4, -21.6, 4, -21.6, 1.6, INK);
+        }
+        if (n >= 4 && view !== 'back') {                                                                     // sunglasses
+          if (side) line(c, 1, -21.9, 4.1, -21.9, 1.7, INK); else line(c, -2.6, -21.4, 2.6, -21.4, 1.8, INK);
+        }
+      } else {
+        if (n >= 4) line(c, side ? -3 : -3.6, -23.6, side ? 4 : 3.6, -23.6, 1.3, INK);                          // hat band
+        if (n >= 4) line(c, side ? -6 : -6.5, -23, side ? 7 : 6.5, -23, 1.6, INK);                              // wider brim
+        if (n >= 5) { c.beginPath(); c.moveTo(-2, -24); c.quadraticCurveTo(-5, -26, -4.5, -29); c.quadraticCurveTo(-2.8, -26.5, -1, -24.5); c.closePath(); fillStroke(c, B('#ffffff', '#3a7bc8'), 0.8); }
+      }
     },
     rnd, tint, mix,
   };

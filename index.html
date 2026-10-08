@@ -11,6 +11,7 @@
   #app { display:flex; flex-direction:column; height:100%; }
   header { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:6px 10px; border-bottom:3px solid var(--line); background:var(--paper); }
   header h1 { margin:0; font-size:22px; letter-spacing:3px; }
+  header h1 small { font-size:10px; letter-spacing:1px; color:var(--mid); vertical-align:middle; }
   .stat { display:flex; flex-direction:column; line-height:1.1; }
   .stat small { font-size:10px; color:var(--mid); text-transform:uppercase; letter-spacing:1px; }
   .stat b { font-size:15px; }
@@ -62,6 +63,7 @@
   .card.dim { border-style:dashed; color:var(--mid); }
   .staffrow { display:flex; align-items:center; gap:8px; border:2px solid var(--ink); padding:6px 8px; margin-bottom:6px; }
   .staffrow .who { flex:1; min-width:0; }
+  .staffrow canvas { flex:0 0 auto; border:1.5px solid var(--ink); }
   .staffrow .who small { display:block; color:var(--mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .staffrow button { margin:0; padding:3px 6px; font-size:12px; }
   .skill { letter-spacing:1px; }
@@ -107,7 +109,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>3D ZOO</h1>
+    <h1>3D ZOO <small id="ver" title="Game version">v1.1</small></h1>
     <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
@@ -169,8 +171,8 @@
     </div>
   </nav>
 </div>
-<script src="animals.js"></script>
-<script src="world-art.js"></script>
-<script src="game.js"></script>
+<script src="animals.js?v=1.1"></script>
+<script src="world-art.js?v=1.1"></script>
+<script src="game.js?v=1.1"></script>
 </body>
 </html>

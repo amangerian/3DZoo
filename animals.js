@@ -48,9 +48,9 @@
   ['lion', 'elephant', 'giraffe', 'zebra', 'penguin', 'bear', 'monkey', 'flamingo', 'snowleopard'].forEach(id => {
     APPROVED[id] = { adult: true, baby: true, adultFrontBack: true, babyFrontBack: true };
   });
-  // New animals (2026-10-08): side views drawn, awaiting Alex's approval. Front/back views not drawn yet.
+  // New animals added 2026-10-08 (side, front, and back views, adult and baby): all approved by Alex on 2026-10-08.
   ['ostrich', 'seahawk', 'hippo', 'anaconda', 'rhino', 'polarbear', 'shark', 'orca', 'triceratops', 'basilisk', 'unicorn', 'parrot', 'toucan', 'owl', 'eagle'].forEach(id => {
-    APPROVED[id] = { adult: false, baby: false, adultFrontBack: false, babyFrontBack: false };
+    APPROVED[id] = { adult: true, baby: true, adultFrontBack: true, babyFrontBack: true };
   });
 
   // ---------- drawing helpers ----------
