@@ -6,11 +6,12 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 
 ## How it plays
 
-- **Zoo stars** (click the stars at the top): you start with 1 star, $15,000, and the four starter animals (zebra, penguin, flamingo, monkey). Each new star needs every goal met at once: rating, guests in one day, guests in the zoo at the same time (up to 1,000 can be in the zoo at once), number of species, and babies born. Each star unlocks more:
+- **Zoo stars** (click the stars at the top): you start with 1 star, $15,000, and the four starter animals (zebra, penguin, flamingo, monkey). Each new star needs every goal met at once: rating, guests in one day, guests in the zoo at the same time, number of species, and babies born. Each star unlocks more:
   - 2 stars: giraffe, bear, ostrich, sea hawk, parrot, aviary mesh, gift shop. Grass, trees, and bushes turn green.
   - 3 stars: lion, snow leopard, hippo, anaconda, toucan, great horned owl, education center. Water turns blue.
   - 4 stars: elephant, rhino, polar bear, bald eagle. Paths, fences, and buildings get their colors.
   - 5 stars: aquarium tanks, sharks, and orcas. Animals in color (art still to come).
+  - 6 stars: ???
   Earned stars are never lost. Older saves work out their star level when loaded and keep everything already built.
 - **Secrets**: a few rare animals are hidden until you find out how to unlock them.
 - **Floors**: paint **snow** inside an exhibit for cold animals (penguins, snow leopards, polar bears want at least half the land snowy). Paint **tank water** (at least 12 tiles, inside a fence) for sharks and orcas. Fences beside tank water become glass walls.
@@ -87,6 +88,11 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.2** (Oct 8, 2026)
+  - Fixed crowding: visits are shorter and grow with the number of exhibits, guests spread across the path width, avoid packed spots, and no more than four watch from the same spot. Guests head home once they've seen everything.
+  - Fixed the rating always sitting above 90: litter and dirty exhibits now really bother guests, and a great collection of animals can't hide a messy zoo.
+  - Star goals retuned to the new guest numbers.
+  - A sixth star, for the most dedicated zookeepers. Some say it leads to something rare.
 - **v1.1** (Oct 8, 2026)
   - The Menu no longer estimates how many guests a ticket price will bring. Finding the right price is up to the player.
 - **v1.0** (Oct 8, 2026)

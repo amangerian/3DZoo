@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.1';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.2';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5;   // SNOW and TANK are exhibit floors; MESH is aviary fencing
@@ -117,19 +117,21 @@
   const STARS = [null,
     { need: [], animals: ['zebra', 'penguin', 'flamingo', 'monkey'],
       tools: ['path', 'fence', 'snow', 'tree', 'acacia', 'palm', 'pine', 'bush', 'water', 'toy', 'wheel', 'post', 'remove'] },
-    { need: [['rating', 65], ['guests', 65], ['crowd', 120]], animals: ['giraffe', 'bear', 'ostrich', 'seahawk', 'parrot'], tools: ['gift', 'mesh'], color: 'Grass, trees, and bushes turn green' },
-    { need: [['rating', 75], ['species', 4], ['births', 1], ['crowd', 200]], animals: ['lion', 'snowleopard', 'hippo', 'anaconda', 'toucan', 'owl'], tools: ['edu'], color: 'Water turns blue' },
-    { need: [['rating', 85], ['species', 5], ['guests', 130], ['crowd', 350]], animals: ['elephant', 'rhino', 'polarbear', 'eagle'], tools: [], color: 'Paths, fences, and buildings get their colors' },
-    { need: [['rating', 90], ['species', 8], ['guests', 180], ['crowd', 440]], animals: ['shark', 'orca'], tools: ['tank'], color: 'Animals in color (art still to come)' },
+    { need: [['rating', 65], ['guests', 45], ['crowd', 30]], animals: ['giraffe', 'bear', 'ostrich', 'seahawk', 'parrot'], tools: ['gift', 'mesh'], color: 'Grass, trees, and bushes turn green' },
+    { need: [['rating', 70], ['species', 4], ['births', 1], ['guests', 80], ['crowd', 55]], animals: ['lion', 'snowleopard', 'hippo', 'anaconda', 'toucan', 'owl'], tools: ['edu'], color: 'Water turns blue' },
+    { need: [['rating', 75], ['species', 5], ['guests', 120], ['crowd', 85]], animals: ['elephant', 'rhino', 'polarbear', 'eagle'], tools: [], color: 'Paths, fences, and buildings get their colors' },
+    { need: [['rating', 80], ['species', 8], ['guests', 170], ['crowd', 120]], animals: ['shark', 'orca'], tools: ['tank'], color: 'Animals in color (art still to come)' },
+    { need: [['rating', 85], ['species', 14], ['guests', 260], ['crowd', 180], ['births', 30]], animals: [], tools: [], mystery: true },
   ];
   // Secret animals never show in the shop or the star list until their unlock is found.
   const SECRETS = {
     triceratops: { msg: 'Paleontologists visiting the education center were so taken with your rhinos that they arranged something extraordinary. A triceratops is now in the Animals tab!',
-      test: () => S.animals.filter(a => a.sp === 'rhino').length >= 3 && hasBuilding('edu') && S.rep >= 80 },
+      test: () => S.stars >= 6 && hasBuilding('edu') && S.animals.filter(a => a.sp === 'rhino').length >= 4
+        && exStats().some(x => [...x.species].filter(sp => SAVANNA.includes(sp)).length >= 4) },
     basilisk: { msg: 'One of the anaconda eggs looked... different. Something ancient is now in the Animals tab.',
-      test: () => (S.bornBy.anaconda || 0) >= 2 },
+      test: () => S.stars >= 6 && (S.bornBy.anaconda || 0) >= 4 },
     unicorn: { msg: 'A perfect day at the zoo! Something magical has appeared in the Animals tab.',
-      test: () => S.animals.length >= 15 && S.animals.every(a => a.happy >= 85 && !a.loose) && S.rep >= 92 && !Object.keys(S.litter).length },
+      test: () => S.stars >= 6 && S.animals.length >= 30 && S.animals.every(a => a.happy >= 88 && !a.loose) && S.rep >= 86 && Object.values(S.litter).reduce((t, n) => t + n, 0) <= 5 },
   };
   const MAX_STARS = STARS.length - 1;
   const GOAL = {
@@ -545,12 +547,27 @@
   }
 
   // ---------- guests ----------
+  // How long a guest stays: a short base visit plus a few seconds for each exhibit worth seeing.
+  const exhibitsToSee = () => EX.filter(E => S.animals.some(a => a.ex === E.id && !a.loose)).length;
+  const visitLength = () => DAY * (0.15 + Math.random() * 0.15) + Math.min(24, 2.6 * exhibitsToSee());
+  // Guests on each path tile right now, refreshed every tick (used to spread the crowd out).
+  let occ = new Uint16Array(MW * MH), watchers = new Uint16Array(MW * MH);
+  function countGuests() {
+    occ.fill(0); watchers.fill(0);
+    guests.forEach(g => { if (g.inside) return; const i = tileAt(g.x, g.y); if (i < 0) return; occ[i]++; if (g.watch) watchers[i]++; });
+  }
+  // A guest's mood: what they've enjoyed (with a ceiling, so great animals can't hide a messy zoo)
+  // minus what spoiled it: litter underfoot, dirty exhibits, and unhappy animals.
+  function mood(g) {
+    g.happy = clamp(g.base + Math.min(40, g.sights) + g.extra - g.litterPen - g.dirtyPen - g.sadPen, 0, 100);
+  }
   function spawnGuest() {
     const c = center(idx(ENT.x, ENT.y));
-    guests.push({ x: c.x + (Math.random() - 0.5) * 10, y: c.y, path: [], phase: Math.random() * 6, facing: 1,
-      happy: 55 - Math.max(0, S.ticket - 20) * 0.8,                 // steep tickets put guests in a worse mood
-      seen: new Set(), visits: new Map(), stay: DAY * (0.5 + Math.random() * 0.6), leaving: false,
-      litterT: 30 + Math.random() * 40, look: A.randomGuestLook(), moving: true,
+    guests.push({ x: c.x + (Math.random() - 0.5) * 16, y: c.y, path: [], phase: Math.random() * 6, facing: 1,
+      happy: 50, base: 50 - Math.max(0, S.ticket - 20) * 0.8,       // steep tickets put guests in a worse mood
+      sights: 0, extra: 0, litterPen: 0, dirtyPen: 0, sadPen: 0,
+      seen: new Set(), visits: new Map(), stay: visitLength(), leaving: false, lx: (Math.random() - 0.5) * 18, ly: (Math.random() - 0.5) * 18,
+      litterT: 10 + Math.random() * 30, look: A.randomGuestLook(), moving: true,
       best: 0, fav: null, litterSeen: 0, rolled: new Set(), boost: 1 });
     earn('tickets', S.ticket); S.today.guests++; S.totals.guests++;
   }
@@ -558,18 +575,20 @@
   function guestSees(g, i) {
     (viewOf[i] || []).forEach(eid => {
       if (g.seen.has(eid)) return;
-      g.seen.add(eid);
-      const list = S.animals.filter(a => a.ex === eid);
+      const list = S.animals.filter(a => a.ex === eid && !a.loose);
       if (!list.length) return;
+      g.seen.add(eid);
       g.sawAnimals = true;
       const bySp = {};
       list.forEach(a => { bySp[a.sp] = (bySp[a.sp] || 0) + Z.SPECIES[a.sp].appeal * (a.happy / 100) * (a.baby ? 1.4 : 1); });
       Object.entries(bySp).forEach(([sp, v]) => { if (v > g.best) { g.best = v; g.fav = sp; } });
-      let gain = Object.values(bySp).reduce((s, v) => s + v, 0) * 0.9 * g.boost;
-      gain = Math.min(22 * g.boost, gain);
+      g.sights += Math.min(14, Object.values(bySp).reduce((s, v) => s + v, 0) * 0.6) * g.boost;
       const avg = list.reduce((s, a) => s + a.happy, 0) / list.length;
-      if (avg < 40) { gain -= 6; g.sawSad = list[0].sp; }
-      g.happy = clamp(g.happy + gain, 0, 100);
+      if (avg < 40) { g.sadPen += 8; g.sawSad = list[0].sp; }
+      // droppings piling up in an exhibit put guests off
+      const E = EX[eid], poop = E.tiles.reduce((t, j) => t + (S.poop[j] || 0), 0), dirt = poop / Math.max(3, E.tiles.length * 0.15);
+      if (dirt > 0.8) { g.dirtyPen += Math.min(10, 8 * (dirt - 0.6)); g.sawDirty = true; }
+      mood(g);
     });
   }
 
@@ -592,13 +611,13 @@
     if (b.type === 'gift') {
       earn('gifts', PLUSH_PRICE); spend('merch', PLUSH_COST);
       g.plush = g.fav; S.plushSales[g.fav] = (S.plushSales[g.fav] || 0) + 1; S.today.plush++;
-      g.happy = clamp(g.happy + 5, 0, 100);
+      g.extra += 4; mood(g);
     } else {
       const here = [...new Set(S.animals.map(a => a.sp))];
       const pool = here.length ? here : Object.keys(FACTS);
       g.learned = pool[Math.floor(Math.random() * pool.length)];
       g.boost = 1.3; S.today.eduVisits++;
-      g.happy = clamp(g.happy + 8, 0, 100);
+      g.extra += 6; mood(g);
     }
   }
 
@@ -606,6 +625,7 @@
   // a quick look if the animals seem unhappy. Exhibits they've already watched get the odd second look.
   function maybeWatch(g, i) {
     g.watched = g.watched || new Set();
+    if (watchers[i] >= 4) return false;              // the rail here is full; walk on and look from further along
     for (const eid of (viewOf[i] || [])) {
       const list = S.animals.filter(a => a.ex === eid);
       if (!list.length) continue;
@@ -620,22 +640,23 @@
       if (Math.abs(dy) > Math.abs(dx)) g.view = dy < 0 ? 'back' : 'front';
       else { g.view = 'side'; g.facing = dx > 0 ? 1 : -1; }
       // step up to the fence side of the path and spread out a little so a crowd lines the rail
-      const c = center(i), side = (Math.random() - 0.5) * 16;
-      if (g.view === 'side') { g.x = c.x + g.facing * 8; g.y = c.y + side * 0.6; }
-      else { g.y = c.y + (g.view === 'back' ? -8 : 8); g.x = c.x + side; }
+      const c = center(i), side = (watchers[i] - 1.5) * 6 + (Math.random() - 0.5) * 3;
+      if (g.view === 'side') { g.x = c.x + g.facing * 9; g.y = c.y + side; }
+      else { g.y = c.y + (g.view === 'back' ? -9 : 9); g.x = c.x + side; }
+      watchers[i]++;
       const sp = list.reduce((b, a) => Z.SPECIES[a.sp].appeal > Z.SPECIES[b.sp].appeal ? a : b).sp;
       const avg = list.reduce((s2, a) => s2 + a.happy, 0) / list.length;
-      let t = 2 + Math.random() * 2;
-      if (sp === g.fav) t += 2;
-      if (list.some(a => a.baby)) t += 1.5;
+      let t = 1.8 + Math.random() * 1.7;
+      if (sp === g.fav) t += 1.5;
+      if (list.some(a => a.baby)) t += 1;
       if (avg < 40) t = 1 + Math.random();
       if (again) t *= 0.5;
-      g.watch = { t: Math.min(8, t), ex: eid, sp, again };
+      g.watch = { t: Math.min(6, t), ex: eid, sp, again };
       g.path = []; g.moving = false;
       return true;
     }
     // now and then just stop to take it all in
-    if (Math.random() < 0.05) { g.watch = { t: 1 + Math.random() * 1.5, ex: -1 }; g.moving = false; return true; }
+    if (Math.random() < 0.03 && occ[i] < 4) { g.watch = { t: 1 + Math.random() * 1.5, ex: -1 }; g.moving = false; return true; }
     return false;
   }
 
@@ -644,6 +665,7 @@
     if (g.fav) out.push(`Loved the ${plural(g.fav)}!`);
     if (!g.sawAnimals) out.push('Not much to see yet');
     if (g.sawSad) out.push(`The ${plural(g.sawSad)} looked unhappy`);
+    if (g.sawDirty) out.push('The exhibits were dirty');
     if (g.litterSeen >= 8) out.push('Too much litter on the paths');
     if (S.ticket > 25) out.push('Tickets are pricey');
     if (g.learned) out.push('Learned something new at the education center');
@@ -656,17 +678,19 @@
     if (g.watch) {
       // standing still at the rail; watching uses up part of their visit like walking does
       g.watch.t -= dt; g.moving = false;
-      if (g.watch.again) g.stay -= dt;           // a first look at an exhibit is what they came for; second looks use up the visit
+      g.stay -= dt;
       if (g.watch.t <= 0 || g.leaving) g.watch = null;
       return;
     }
     g.stay -= dt;
+    // seen it all? a little longer to wander, then home
+    if (!g.done && g.seen.size && g.seen.size >= exhibitsToSee()) { g.done = true; g.stay = Math.min(g.stay, 6 + Math.random() * 6); }
     if (!g.leaving && (g.stay <= 0 || g.happy < 15)) { g.leaving = true; }
     g.litterT -= dt;
     if (g.litterT <= 0) {
-      g.litterT = 40 + Math.random() * 40;
+      g.litterT = 30 + Math.random() * 35;
       const i = tileAt(g.x, g.y);
-      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.3) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
+      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.22) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
     }
     if (!g.path.length) {
       const i = tileAt(g.x, g.y);
@@ -676,10 +700,10 @@
         if (maybeVisit(g, i)) return;
         const r = bfs(i, j => S.tiles[j] === PATH, j => j === idx(ENT.x, ENT.y));
         if (!r) { g.gone = true; return; }
-        g.path = toPoints(r.slice(0, 1), 10);
+        const c = center(r[0]); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
       } else {
         guestSees(g, i);
-        if (S.litter[i]) { g.happy = clamp(g.happy - 0.7 * S.litter[i], 0, 100); g.litterSeen += S.litter[i]; }
+        if (S.litter[i]) { g.litterPen += 0.8 * S.litter[i]; g.litterSeen += S.litter[i]; mood(g); }
         g.visits.set(i, (g.visits.get(i) || 0) + 1);
         if (maybeVisit(g, i)) return;
         if (maybeWatch(g, i)) return;
@@ -689,14 +713,14 @@
         opts.forEach(n => {
           // head for paths they haven't walked, and toward animals they haven't seen yet
           const fresh = (viewOf[n] || []).some(e => !(g.watched && g.watched.has(e)) && S.animals.some(a => a.ex === e));
-          const v = (g.visits.get(n) || 0) + Math.random() * 0.8 + (n === g.prev ? 1.5 : 0) - (fresh ? 0.9 : 0);
+          const v = (g.visits.get(n) || 0) + Math.random() * 0.8 + (n === g.prev ? 1.5 : 0) - (fresh ? 0.9 : 0) + Math.max(0, occ[n] - 3) * 0.25;
           if (v < best - 0.01) { best = v; picks = [n]; } else if (Math.abs(v - best) < 0.01) picks.push(n);
         });
         g.prev = i;
-        g.path = toPoints([picks[0]], 14);
+        const c = center(picks[0]); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
       }
     }
-    const moved = stepAlong(g, 22 * dt);
+    const moved = stepAlong(g, (g.leaving ? 36 : 26) * dt);
     g.phase += moved * 0.45; g.moving = moved > 0;
   }
 
@@ -730,7 +754,7 @@
     }
     if (!s.path.length) {
       const i = tileAt(s.x, s.y);
-      if (S.litter[i]) { s.workT = workTime(s, 1.2); s.sweeping = true; s.task = 'Sweeping'; return; }
+      if (S.litter[i]) { s.workT = workTime(s, 0.8); s.sweeping = true; s.task = 'Sweeping'; return; }
       const r = bfs(i, j => S.tiles[j] === PATH, j => !!S.litter[j]);
       if (r) { s.path = toPoints(r); s.task = 'Heading to litter'; }
       else { s.task = 'Patrolling'; wander(s); }
@@ -908,7 +932,9 @@
   const hasBuilding = t => S.items.includes(t);
   function guestsPerDay() {
     const priceF = clamp(1.6 - S.ticket / 25, 0, 1.6);
-    return (3 + attraction() * 0.9) * (0.5 + S.rep / 100) * priceF * (hasBuilding('edu') ? 1.1 : 1);
+    const A = attraction();
+    // more animals draw more guests, but the draw tapers off for very large zoos (there's only one gate)
+    return (3 + A * 0.85 / (1 + A / 400)) * (0.5 + S.rep / 100) * priceF * (hasBuilding('edu') ? 1.1 : 1);
   }
 
   function endOfDay(st) {
@@ -938,6 +964,7 @@
     S.animals.forEach(a => updateAnimal(a, dt, st));
     S.arrivalAcc += guestsPerDay() / DAY * dt;
     while (S.arrivalAcc >= 1) { S.arrivalAcc -= 1; if (guests.length < MAX_GUESTS) spawnGuest(); }
+    countGuests();
     guests.forEach(g => updateGuest(g, dt));
     guests = guests.filter(g => {
       if (g.gone) { S.rep = S.rep * 0.95 + g.happy * 0.05; guestComments(g); if (selected && selected.ref === g) selected = null; }
@@ -1557,7 +1584,8 @@
       S.stars++;
       if (quiet) continue;
       const L = STARS[S.stars], news = [...L.animals, ...L.tools].map(unlockName);
-      const msg = `The zoo earned ${S.stars} stars!` + (news.length ? ` New: ${news.join(', ')}.` : '') + (L.color ? ` ${L.color}.` : '');
+      const msg = `The zoo earned ${S.stars} stars!` + (news.length ? ` New: ${news.join(', ')}.` : '') + (L.color ? ` ${L.color}.` : '')
+        + (L.mystery ? ' Rumor has it that something rare could turn up at a zoo like this...' : '');
       log(msg); toast(msg);
       renderHud(); renderTray(); if (panelMode === 'stars') renderPanel();
     }
@@ -1644,10 +1672,10 @@
         const n = k + 1, got = S.stars >= n, items = [...L.animals, ...L.tools].map(unlockName);
         return `<div class="card ${got ? '' : 'dim'}"><b>${starText(n)}</b>${got ? ' <small>earned</small>' : ''}<br>
           ${L.need.length ? `<small>Needs: ${L.need.map(([key, v]) => GOAL[key].label(v).toLowerCase()).join(', ')}</small><br>` : '<small>Where every zoo starts</small><br>'}
-          ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
+          ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.mystery ? '<small>Unlocks: ???</small><br>' : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
       }).join('');
       el.innerHTML = (next ? `<div class="card"><b>Next star</b><br><small>Meet all of these at the same time.</small>${goals}</div>`
-        : `<div class="card"><b>Five-star zoo!</b><br><small>You've earned every star.</small></div>`) + ladder;
+        : `<div class="card"><b>A ${MAX_STARS}-star zoo!</b><br><small>You've earned every star. Keep your eyes open...</small></div>`) + ladder;
       return;
     }
     if (panelMode === 'staff') {
