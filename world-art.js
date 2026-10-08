@@ -39,6 +39,72 @@
       }
     },
 
+    // Flat-topped savanna tree.
+    acacia(c, x, y, seed = 0) {
+      Art.shadow(c, x, y, 15);
+      const trunk = P('#777777', '#8a5a32');
+      line(c, x, y, x - 1, y - 16, 4.6, INK); line(c, x, y, x - 1, y - 16, 2.4, trunk);
+      [[-1, -16, -9, -28], [-1, -16, 8, -29], [-1, -14, 1, -30]].forEach(([a, b, d, e]) => { line(c, x + a, y + b, x + d, y + e, 3.6, INK); line(c, x + a, y + b, x + d, y + e, 1.6, trunk); });
+      const top = () => { c.beginPath();
+        for (let k = 0; k <= 12; k++) { const t = k / 12, px = x - 19 + 38 * t, bump = k % 2 ? 2.5 : 0; c.lineTo(px, y - 33 - Math.sin(t * Math.PI) * 4 - bump); }
+        c.quadraticCurveTo(x + 21, y - 27, x + 12, y - 26); c.lineTo(x - 12, y - 26); c.quadraticCurveTo(x - 21, y - 27, x - 19, y - 33); c.closePath(); };
+      top(); fillStroke(c, P('#ffffff', '#8cbf4f'), 2.6);
+      c.strokeStyle = P('#999999', '#5c8f34'); c.lineWidth = 1;
+      for (let i = 0; i < 4; i++) { const px = x - 12 + rnd(seed + i) * 24; c.beginPath(); c.arc(px, y - 30, 2, 0.2, 2.6); c.stroke(); }
+    },
+
+    palm(c, x, y, seed = 0) {
+      Art.shadow(c, x + 3, y, 10);
+      const trunk = P('#cccccc', '#b08a5a');
+      c.beginPath(); c.moveTo(x - 3, y); c.quadraticCurveTo(x + 1, y - 18, x + 6, y - 34); c.lineTo(x + 9, y - 33); c.quadraticCurveTo(x + 5, y - 17, x + 3, y); c.closePath();
+      fillStroke(c, trunk, 1.8);
+      c.strokeStyle = INK; c.lineWidth = 1;
+      for (let k = 1; k < 6; k++) { const t = k / 6, px = x + 0 + 6.5 * t * t, py = y - 34 * t; c.beginPath(); c.moveTo(px - 2.5, py); c.lineTo(px + 3, py - 1); c.stroke(); }
+      const leaf = P('#ffffff', '#5aa548');
+      [[-20, -26], [-14, -40], [2, -44], [18, -40], [24, -27]].forEach(([dx, dy], k) => {
+        const sx = x + 7, sy = y - 35;
+        c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(sx + dx * 0.5, sy + dy * 0.12 - 9, x + 7 + dx, y + dy);
+        c.quadraticCurveTo(sx + dx * 0.45, sy + dy * 0.12 - 2, sx, sy + 2); c.closePath(); fillStroke(c, leaf, 1.6);
+      });
+      [[4, -33], [9, -32]].forEach(([dx, dy]) => { ell(c, x + dx, y + dy, 2.2, 2.2); fillStroke(c, P('#777777', '#7a5230'), 1); });
+    },
+
+    pine(c, x, y, seed = 0) {
+      Art.shadow(c, x, y, 11);
+      line(c, x, y, x, y - 8, 5, INK); line(c, x, y, x, y - 8, 2.6, P('#777777', '#7a4a2a'));
+      const g = P('#ffffff', '#3f8048');
+      [[-13, -7, -22], [-11, -17, -32], [-8, -27, -42]].forEach(([w, b, t]) => {
+        c.beginPath(); c.moveTo(x + w, y + b); c.lineTo(x, y + t); c.lineTo(x - w, y + b);
+        c.quadraticCurveTo(x, y + b + 3, x + w, y + b); c.closePath(); fillStroke(c, g, 2.2);
+      });
+      c.strokeStyle = P('#aaaaaa', '#2c5f35'); c.lineWidth = 1;
+      [[-4, -12], [3, -21], [-2, -31]].forEach(([dx, dy]) => { c.beginPath(); c.moveTo(x + dx - 2, y + dy); c.lineTo(x + dx, y + dy - 2); c.lineTo(x + dx + 2, y + dy); c.stroke(); });
+    },
+
+    // Exercise wheel on a stand. spin turns the spokes while an animal runs in it.
+    wheel(c, x, y, spin = 0) {
+      Art.shadow(c, x, y, 12);
+      const wood = B('#999999', '#8a5a32'), rim = B('#ffffff', '#e8a93a');
+      line(c, x - 8, y, x, y - 13, 3, INK); line(c, x + 8, y, x, y - 13, 3, INK);
+      c.beginPath(); c.arc(x, y - 13, 11.5, 0, Math.PI * 2); c.lineWidth = 5.5; c.strokeStyle = INK; c.stroke();
+      c.lineWidth = 2.8; c.strokeStyle = rim; c.stroke();
+      c.lineWidth = 1.2; c.strokeStyle = wood;
+      for (let k = 0; k < 4; k++) { const a = spin + k * Math.PI / 4; c.beginPath(); c.moveTo(x + Math.cos(a) * 9.5, y - 13 + Math.sin(a) * 9.5); c.lineTo(x - Math.cos(a) * 9.5, y - 13 - Math.sin(a) * 9.5); c.stroke(); }
+      ell(c, x, y - 13, 2, 2); c.fillStyle = INK; c.fill();
+    },
+
+    // Rope-wrapped scratching post. wobble shakes it while an animal scratches.
+    post(c, x, y, wobble = 0) {
+      Art.shadow(c, x, y, 9);
+      c.save(); c.translate(x, y); c.rotate(wobble * 0.08);
+      c.beginPath(); c.rect(-8, -4, 16, 4); fillStroke(c, B('#cccccc', '#8a5a32'), 1.6);
+      c.beginPath(); c.rect(-3.5, -26, 7, 22); fillStroke(c, B('#e6e6e6', '#d8bf8a'), 1.8);
+      c.strokeStyle = B('#888888', '#9a7a48'); c.lineWidth = 1;
+      for (let k = 0; k < 7; k++) { c.beginPath(); c.moveTo(-3.5, -6 - k * 3); c.lineTo(3.5, -8 - k * 3); c.stroke(); }
+      c.beginPath(); c.rect(-7, -29, 14, 3.5); fillStroke(c, B('#cccccc', '#8a5a32'), 1.6);
+      c.restore();
+    },
+
     bush(c, x, y, seed = 0) {
       Art.shadow(c, x, y, 11);
       const blobs = [[-6, -5, 6], [6, -5, 6], [0, -9, 7]];

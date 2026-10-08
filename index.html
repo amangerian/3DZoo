@@ -60,6 +60,12 @@
   #tray button.locked small:not(.lock) { display:none; }
   #tray button .lock { font-weight:bold; opacity:1; }
   .card.dim { border-style:dashed; color:var(--mid); }
+  .staffrow { display:flex; align-items:center; gap:8px; border:2px solid var(--ink); padding:6px 8px; margin-bottom:6px; }
+  .staffrow .who { flex:1; min-width:0; }
+  .staffrow .who small { display:block; color:var(--mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .staffrow button { margin:0; padding:3px 6px; font-size:12px; }
+  .skill { letter-spacing:1px; }
+  #panel.wide { width:400px; }
   #zoom { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:4px; }
   #zoom button { width:34px; height:34px; padding:0; font-size:18px; font-weight:bold; }
   #news { position:absolute; left:10px; bottom:10px; max-width:min(420px, 70%); font-size:12px; pointer-events:none; }
@@ -138,11 +144,20 @@
       <div class="pane" data-pane="build">
         <button data-tool="path">Path<small>$10</small></button>
         <button data-tool="fence">Fence<small>$25</small></button>
+        <button data-tool="mesh">Aviary mesh<small>$40</small></button>
+        <button data-tool="snow">Snow<small>$40/tile</small></button>
+        <button data-tool="tank">Tank water<small>$150/tile</small></button>
         <span class="sep"></span>
-        <button data-tool="tree">Tree<small>$150</small></button>
+        <button data-tool="tree">Oak<small>$150</small></button>
+        <button data-tool="acacia">Acacia<small>$170</small></button>
+        <button data-tool="palm">Palm<small>$180</small></button>
+        <button data-tool="pine">Pine<small>$160</small></button>
         <button data-tool="bush">Bush<small>$60</small></button>
-        <button data-tool="water">Water<small>$200</small></button>
-        <button data-tool="toy">Toy<small>$120</small></button>
+        <button data-tool="water">Pond<small>$200</small></button>
+        <span class="sep"></span>
+        <button data-tool="toy">Ball<small>$120</small></button>
+        <button data-tool="wheel">Wheel<small>$300</small></button>
+        <button data-tool="post">Scratch post<small>$90</small></button>
         <span class="sep"></span>
         <button data-tool="gift">Gift shop<small>$2,500</small></button>
         <button data-tool="edu">Education<small>$4,000</small></button>

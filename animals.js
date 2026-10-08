@@ -16,11 +16,29 @@
     elephant:     { name: 'Elephant',     wants: ['water', 'tree', 'toy'], cost: 5000, appeal: 10, babyScale: 0.45, galleryScale: 0.85 },
     giraffe:      { name: 'Giraffe',      wants: ['tree', 'water'],        cost: 4000, appeal: 8,  babyScale: 0.5,  galleryScale: 0.68 },
     zebra:        { name: 'Zebra',        wants: ['bush', 'water'],        cost: 1500, appeal: 5,  babyScale: 0.55, galleryScale: 1.0 },
-    penguin:      { name: 'Penguin',      wants: ['water', 'toy'],         cost: 1200, appeal: 7,  babyScale: 0.6,  galleryScale: 1.35 },
+    penguin:      { name: 'Penguin',      wants: ['water', 'toy', 'snow'],         cost: 1200, appeal: 7,  babyScale: 0.6,  galleryScale: 1.35 },
     bear:         { name: 'Bear',         wants: ['water', 'tree', 'toy'], cost: 3500, appeal: 8,  babyScale: 0.45, galleryScale: 1.0 },
     monkey:       { name: 'Monkey',       wants: ['tree', 'toy', 'bush'],  cost: 2000, appeal: 7,  babyScale: 0.5,  galleryScale: 1.3 },
     flamingo:     { name: 'Flamingo',     wants: ['water', 'bush'],        cost: 1000, appeal: 4,  babyScale: 0.5,  galleryScale: 1.0 },
-    snowleopard:  { name: 'Snow leopard', wants: ['tree', 'toy', 'bush'],  cost: 4500, appeal: 9,  babyScale: 0.5,  galleryScale: 1.0 },
+    snowleopard:  { name: 'Snow leopard', wants: ['snow', 'tree', 'toy'],  cost: 4500, appeal: 9,  babyScale: 0.5,  galleryScale: 1.0 },
+    // added 2026-10-08, pending approval. 'snow' = a snowy floor; 'tank' = an aquarium tank exhibit.
+    ostrich:      { name: 'Ostrich',      wants: ['bush', 'tree'],         cost: 2200,  appeal: 6,  babyScale: 0.55, galleryScale: 0.62 },
+    seahawk:      { name: 'Sea hawk',     wants: ['tree', 'water'],        cost: 1800,  appeal: 6,  babyScale: 0.6,  galleryScale: 1.35 },
+    hippo:        { name: 'Hippo',        wants: ['water', 'bush'],        cost: 6000,  appeal: 9,  babyScale: 0.5,  galleryScale: 0.9 },
+    anaconda:     { name: 'Anaconda',     wants: ['water', 'tree'],        cost: 3800,  appeal: 7,  babyScale: 0.55, galleryScale: 0.95 },
+    rhino:        { name: 'Rhino',        wants: ['bush', 'water', 'tree'], cost: 7000, appeal: 9,  babyScale: 0.5,  galleryScale: 0.9 },
+    polarbear:    { name: 'Polar bear',   wants: ['snow', 'water', 'toy'], cost: 6500,  appeal: 10, babyScale: 0.45, galleryScale: 1.0 },
+    shark:        { name: 'Shark',        wants: ['tank'],                 cost: 12000, appeal: 13, babyScale: 0.5,  galleryScale: 1.05 },
+    orca:         { name: 'Orca',         wants: ['tank', 'toy'],          cost: 25000, appeal: 16, babyScale: 0.5,  galleryScale: 0.85 },
+    // aviary birds: they fly, so they can only live in an exhibit closed in with aviary mesh
+    parrot:       { name: 'Parrot',       wants: ['tree', 'toy'],          cost: 1500,  appeal: 7,  babyScale: 0.6,  galleryScale: 1.35 },
+    toucan:       { name: 'Toucan',       wants: ['tree', 'bush'],         cost: 2200,  appeal: 7,  babyScale: 0.6,  galleryScale: 1.35 },
+    owl:          { name: 'Great horned owl', wants: ['tree'],             cost: 2600,  appeal: 7,  babyScale: 0.6,  galleryScale: 1.3 },
+    eagle:        { name: 'Bald eagle',   wants: ['tree', 'water'],        cost: 4500,  appeal: 9,  babyScale: 0.55, galleryScale: 1.15 },
+    // secret animals: hidden from the shop until their unlock is found
+    triceratops:  { name: 'Triceratops',  wants: ['tree', 'bush', 'water'], cost: 15000, appeal: 15, babyScale: 0.45, galleryScale: 0.72, secret: true },
+    basilisk:     { name: 'Basilisk',     wants: ['water', 'bush'],        cost: 18000, appeal: 14, babyScale: 0.5,  galleryScale: 0.7,  secret: true },
+    unicorn:      { name: 'Unicorn',      wants: ['tree', 'bush', 'water', 'toy'], cost: 20000, appeal: 15, babyScale: 0.55, galleryScale: 0.95, secret: true },
   };
   // Approval status lives separately so it is easy to edit.
   // adult / baby: side-view art (all nine approved by Alex on 2026-10-03).
@@ -29,6 +47,10 @@
   const APPROVED = {};
   ['lion', 'elephant', 'giraffe', 'zebra', 'penguin', 'bear', 'monkey', 'flamingo', 'snowleopard'].forEach(id => {
     APPROVED[id] = { adult: true, baby: true, adultFrontBack: true, babyFrontBack: true };
+  });
+  // New animals (2026-10-08): side views drawn, awaiting Alex's approval. Front/back views not drawn yet.
+  ['ostrich', 'seahawk', 'hippo', 'anaconda', 'rhino', 'polarbear', 'shark', 'orca', 'triceratops', 'basilisk', 'unicorn', 'parrot', 'toucan', 'owl', 'eagle'].forEach(id => {
+    APPROVED[id] = { adult: false, baby: false, adultFrontBack: false, babyFrontBack: false };
   });
 
   // ---------- drawing helpers ----------
@@ -778,6 +800,760 @@
       });
     },
   };
+
+  // ---------- new animals (added 2026-10-08; all pending Alex's approval) ----------
+  // A long body drawn as overlapping circles so it gets one clean outline (snakes).
+  function tube(ctx, pts, fill) {
+    ctx.fillStyle = INK; pts.forEach(([x, y, r]) => { ell(ctx, x, y, r + OUT, r + OUT); ctx.fill(); });
+    ctx.fillStyle = fill; pts.forEach(([x, y, r]) => { ell(ctx, x, y, r, r); ctx.fill(); });
+  }
+  // Snake spine: head at x = +len/2, tail at -len/2. lift raises the front (basilisk).
+  function snakePts(ph, m, len, th, amp, lift = 0, n = 40) {
+    const pts = [];
+    for (let i = n; i >= 0; i--) {
+      const t = i / n;                                   // 0 = head, 1 = tail
+      const x = len / 2 - len * t;
+      let y = -th - Math.sin(t * 9 - ph * 1.6) * amp * (0.35 + t * 0.65);
+      if (lift) y -= lift * Math.pow(Math.max(0, 1 - t / 0.35), 1.6);
+      const r = th * (t < 0.08 ? 0.85 + t * 1.9 : t > 0.6 ? 1 - (t - 0.6) * 2.1 : 1);
+      pts.push([x, y, Math.max(1.5, r)]);
+    }
+    return pts;                                          // tail first, head last
+  }
+  function hornPath(ctx, bx1, by1, bx2, by2, tx, ty, bend = 0) {
+    ctx.beginPath(); ctx.moveTo(bx1, by1);
+    ctx.quadraticCurveTo((bx1 + tx) / 2 - bend, (by1 + ty) / 2, tx, ty);
+    ctx.quadraticCurveTo((bx2 + tx) / 2 + bend, (by2 + ty) / 2, bx2, by2); ctx.closePath();
+  }
+
+  Object.assign(ART, {
+    hippo(ctx, ph, m, baby) {
+      const H = '#a9a9a9', HF = '#7f7f7f';
+      const bob = Math.sin(ph * 2) * 1.2 * m, sw = Math.sin(ph) * m;
+      const d = quadLegs(ctx, { ph, A: 0.3 * m, B: 0.45 * m, hindX: -26, foreX: 24, hl: 12, fl: 12,
+        w: 15, near: H, far: HF, foot: null, lf: baby ? 0.8 : 1 });
+      ctx.save(); ctx.translate(0, d);
+      strokeLine(ctx, [-45, -44 + bob, -51, -40, -51 + sw * 2, -33], 2.4, H);
+      ctx.save(); ctx.translate(0, bob);
+      const k = baby ? 1.4 : 1, P = gp(k, 38, -44);
+      const C = (x, y, rx, ry) => () => { const [a, b] = P(x, y); ell(ctx, a, b, rx * k, ry * k); };
+      blob(ctx, H, [() => ell(ctx, 0, -43, 46, 24), C(44, -46, 19, 17), C(64, -38, 15, 13), C(40, -62, 4, 3.5), C(49, -59, 6.5, 5.5)]);
+      grow(ctx, k, 38, -44, () => {
+        dot(ctx, 50, -60, 1.9); dot(ctx, 50.6, -60.6, 0.6, WHITE);
+        shape(ctx, H, () => ell(ctx, 70, -48, 4, 3), 1.6); dot(ctx, 71, -48.5, 1.3);
+        strokeLine(ctx, [50, -31, 62, -27, 77, -35], 1.4, INK, false);
+        strokeLine(ctx, [56, -46, 58, -40, 56, -34], 1, '#777', false);
+      });
+      strokeLine(ctx, [18, -62, 23, -46, 19, -27], 1, '#777', false);
+      ctx.restore(); ctx.restore();
+    },
+
+    rhino(ctx, ph, m, baby) {
+      const R = '#b8b8b8', RF = '#8c8c8c';
+      const bob = Math.sin(ph * 2) * 1.3 * m, nod = Math.sin(ph) * 1.5 * m, sw = Math.sin(ph * 0.8) * m;
+      const d = quadLegs(ctx, { ph, A: 0.32 * m, B: 0.5 * m, hindX: -26, foreX: 24, hl: 17, fl: 17,
+        w: 13, near: R, far: RF, foot: null, lf: baby ? 0.78 : 1 });
+      ctx.save(); ctx.translate(0, d);
+      strokeLine(ctx, [-42, -58 + bob, -48, -50, -47 + sw * 2, -42], 2, R);
+      shape(ctx, INK, () => ell(ctx, -47 + sw * 2, -41, 2, 3.5));
+      ctx.save(); ctx.translate(0, bob);
+      const k = baby ? 1.35 : 1, P = gp(k, 34, -54 + nod);
+      const head = () => {
+        ctx.beginPath();
+        [[28, -66], [44, -64], [60, -52], [72, -40], [68, -31], [52, -33], [32, -42]].forEach(([x, y], i) => {
+          const [a, b] = P(x, y + nod); i ? ctx.lineTo(a, b) : ctx.moveTo(a, b); });
+        ctx.closePath();
+      };
+      blob(ctx, R, [() => ell(ctx, 0, -53, 44, 22), () => ell(ctx, 20, -61, 17, 15), head]);
+      grow(ctx, k, 34, -54 + nod, () => {
+        const y = nod, big = baby ? 0.22 : 1, small = baby ? 0.12 : 1;
+        shape(ctx, '#e8e8e8', () => hornPath(ctx, 59, -51 + y, 70, -40 + y, 66 + 4 * big, -50 - 22 * big + y, -2), 1.8);
+        shape(ctx, '#e8e8e8', () => hornPath(ctx, 50, -57 + y, 57, -52 + y, 54, -57 - 11 * small + y), 1.6);
+        shape(ctx, R, () => { ctx.beginPath(); ctx.moveTo(27, -63 + y); ctx.lineTo(29, -76 + y); ctx.lineTo(35, -65 + y); ctx.closePath(); }, 1.8);
+        dot(ctx, 47, -53 + y, 1.7); dot(ctx, 68.5, -36 + y, 1.1);
+        strokeLine(ctx, [34, -60 + y, 38, -50 + y, 36, -42 + y], 1, '#777', false);
+      });
+      [[-22, -70, -18, -38], [12, -72, 16, -36]].forEach(([a, b, c2, e]) => strokeLine(ctx, [a, b, a + 5, (b + e) / 2, c2, e], 1, '#7a7a7a', false));
+      ctx.restore(); ctx.restore();
+    },
+
+    ostrich(ctx, ph, m, baby) {
+      const bob = Math.sin(ph * 2) * 2 * m, sway = Math.sin(ph) * 2 * m;
+      const lf = baby ? 0.55 : 1, L = 34 * lf;
+      [[Math.PI, '#b9b9b9'], [0, '#dedede']].forEach(([off, col]) => {
+        const s = Math.sin(ph + off), c = Math.cos(ph + off);
+        const a1 = 0.45 * m * s, a2 = a1 - 0.8 * m * Math.max(0, c);
+        limb(ctx, 0, -2 * L, a1, L, a2, L, baby ? 4 : 4.5, col, 'bird');
+      });
+      ctx.save(); ctx.translate(0, 68 * (1 - lf) + bob);
+      if (baby) {
+        strokeLine(ctx, [8, -82, 14, -92, 15 + sway, -101], 5.5, '#c4c4c4');
+        const body = () => fuzz(ctx, 0, -80, 18, 14);
+        shape(ctx, '#bdbdbd', body);
+        clipTo(ctx, body, () => [-11, -3, 5].forEach(x => strokeLine(ctx, [x, -96, x + 5, -64], 2.2, '#6a6a6a', false)));
+        ctx.save(); ctx.translate(15 + sway, -104);
+        shape(ctx, '#c4c4c4', () => fuzz(ctx, 0, 0, 7.5, 7, 12), 2);
+        shape(ctx, '#999', () => { ctx.beginPath(); ctx.moveTo(5, -1); ctx.lineTo(13, 1); ctx.lineTo(5, 3); ctx.closePath(); }, 1.2);
+        dot(ctx, 2, -2, 1.8);
+        ctx.restore();
+      } else {
+        strokeLine(ctx, [12, -86, 26, -112, 22 + sway, -142], 5, '#d8d8d8');
+        shape(ctx, INK, () => fuzz(ctx, 0, -80, 29, 17, 26));
+        shape(ctx, WHITE, () => fuzz(ctx, -27, -88, 10, 8, 12), 1.6);
+        shape(ctx, WHITE, () => ell(ctx, -6, -79, 15, 6.5, 0.18), 1.6);
+        ctx.save(); ctx.translate(22 + sway, -144);
+        shape(ctx, '#d8d8d8', () => ell(ctx, 0, 0, 6.5, 5.5), 1.8);
+        shape(ctx, '#b0b0b0', () => { ctx.beginPath(); ctx.moveTo(4, -1.5); ctx.lineTo(14, 1); ctx.lineTo(4, 3.5); ctx.closePath(); }, 1.2);
+        dot(ctx, 1.5, -1.8, 2); dot(ctx, 2, -2.3, 0.6, WHITE);
+        ctx.restore();
+      }
+      ctx.restore();
+    },
+
+    // Osprey ("sea hawk"). Adults fly low when they move, and perch when they stop.
+    seahawk(ctx, ph, m, baby) {
+      const D = '#4a4a4a', DF = '#2e2e2e';
+      if (baby) {
+        const hop = Math.abs(Math.sin(ph * 1.5)) * 4 * m;
+        [-3, 3].forEach(x => strokeLine(ctx, [x, -9 - hop, x + 1, -1 - hop], 2.4, '#888'));
+        ctx.save(); ctx.translate(0, -hop);
+        shape(ctx, '#bdbdbd', () => fuzz(ctx, 0, -20, 12, 13, 16));
+        shape(ctx, '#d6d6d6', () => fuzz(ctx, 4, -38, 9, 8.5, 14), 2);
+        strokeLine(ctx, [6, -39, -2, -36], 2, INK, false);
+        dot(ctx, 7, -40, 1.8);
+        shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(11, -41); ctx.quadraticCurveTo(17, -40, 15, -35); ctx.lineTo(11, -37); ctx.closePath(); }, 1);
+        ctx.restore();
+        return;
+      }
+      if (m) {
+        const lift = 18 + Math.sin(ph * 0.5) * 2, f = Math.sin(ph * 1.6);
+        ell(ctx, 0, 0, 14, 3); ctx.fillStyle = 'rgba(0,0,0,0.13)'; ctx.fill();
+        ctx.save(); ctx.translate(0, -lift);
+        // a broad feathered wing, raised (k > 0) or lowered (k < 0) at the shoulder
+        const wing = (fill, k) => {
+          const pts = [[8, -25], [1, -25 - 13 * k], [-14, -25 - 31 * k], [-19, -25 - 27 * k], [-17, -25 - 21 * k], [-20, -25 - 17 * k],
+            [-14, -25 - 12 * k], [-15, -25 - 7 * k], [-8, -24 - 3 * k], [-6, -23]];
+          shape(ctx, fill, () => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); }, 1.8);
+          strokeLine(ctx, [2, -25 - 10 * k, -10, -25 - 20 * k], 1, '#888', false);
+        };
+        wing('#777777', f * 0.6 - 0.15);                               // far wing
+        shape(ctx, D, () => { ctx.beginPath(); ctx.moveTo(-12, -25); ctx.lineTo(-29, -28); ctx.lineTo(-30, -19); ctx.lineTo(-12, -20); ctx.closePath(); }, 1.8);
+        [-18, -23].forEach(x => strokeLine(ctx, [x, -26.5, x, -19.5], 1, '#ddd', false));
+        const body = () => ell(ctx, 0, -22, 16, 6.5);
+        shape(ctx, D, body);
+        clipTo(ctx, body, () => { ctx.fillStyle = WHITE; ell(ctx, 3, -16.5, 17, 5); ctx.fill(); });
+        ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+        strokeLine(ctx, [2, -16, 4, -10, 7, -9], 1.6, '#999');
+        shape(ctx, WHITE, () => ell(ctx, 18, -25, 6.5, 5.5));
+        strokeLine(ctx, [18, -26, 12, -24.5], 2.2, INK, false); dot(ctx, 20, -26.5, 1.4);
+        shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(23.5, -27); ctx.quadraticCurveTo(29, -26, 27.5, -21.5); ctx.lineTo(23.5, -23.5); ctx.closePath(); }, 1);
+        wing(D, f);                                                     // near wing
+        ctx.restore();
+        return;
+      }
+      // perched
+      [-3, 4].forEach(x => { strokeLine(ctx, [x, -14, x, -2], 2.6, '#9a9a9a'); strokeLine(ctx, [x - 2, -1, x + 4, -1], 1.6, INK, false); });
+      strokeLine(ctx, [-7, -18, -14, -4], 6, D);
+      [-9, -12].forEach(y => strokeLine(ctx, [-8 + (y + 9) * 0.5, y - 4, -11 + (y + 9) * 0.5, y + 2], 1, '#ddd', false));
+      const body = () => ell(ctx, 0, -27, 11, 17, -0.3);
+      shape(ctx, D, body);
+      clipTo(ctx, body, () => { ctx.fillStyle = WHITE; ell(ctx, 7, -24, 7.5, 15, -0.3); ctx.fill(); });
+      ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+      shape(ctx, WHITE, () => ell(ctx, 5, -46, 8, 7));
+      strokeLine(ctx, [6, -47, -2.5, -44.5], 2.4, INK, false);
+      dot(ctx, 8, -48, 1.5);
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(11, -48); ctx.quadraticCurveTo(18, -47, 16, -41); ctx.lineTo(11, -44); ctx.closePath(); }, 1);
+    },
+
+    polarbear(ctx, ph, m, baby) {
+      const B1 = '#f7f7f7', B2 = '#d2d2d2';
+      const bob = Math.sin(ph * 2) * 1.5 * m, nod = Math.sin(ph) * 1.6 * m;
+      const d = quadLegs(ctx, { ph, A: 0.33 * m, B: 0.5 * m, hindX: -26, foreX: 24, hl: 20, fl: 20,
+        w: 13, near: B1, far: B2, foot: null, lf: baby ? 0.72 : 1 });
+      ctx.save(); ctx.translate(0, d + bob);
+      const k = baby ? 1.45 : 1, P = gp(k, 36, -56 + nod);
+      const C = (x, y, rx, ry, rot = 0) => () => { const [a, b] = P(x, y + nod); ell(ctx, a, b, rx * k, ry * k, rot); };
+      blob(ctx, B1, [() => ell(ctx, -2, -50, 38, 20), () => ell(ctx, -26, -54, 14, 17), () => ell(ctx, 26, -56, 15, 11, -0.45),
+        C(44, -62, 11, 10), C(56, -58, 9, 6.5, 0.15), C(39, -71, 3.6, 3.4)]);
+      grow(ctx, k, 36, -56 + nod, () => {
+        dot(ctx, 64, -59 + nod, 2.6); dot(ctx, 47, -65 + nod, 1.8);
+        strokeLine(ctx, [58, -54 + nod, 62, -53 + nod], 1.1, INK, false);
+      });
+      [[-30, -40, -24, -34], [-10, -36, -4, -32], [6, -38, 12, -33]].forEach(([a, b, c2, e]) => strokeLine(ctx, [a, b, c2, e], 1, '#cfcfcf', false));
+      ctx.restore();
+    },
+
+    anaconda(ctx, ph, m, baby) {
+      const len = 150, th = baby ? 6 : 6.5, amp = m ? 10 : 7;
+      const pts = snakePts(ph * (m ? 1 : 0.1) + 0.6, m, len, th, amp, 6);
+      tube(ctx, pts, '#7a7a7a');
+      pts.forEach(([x, y, r], i) => { if (i % 3 === 1 && i < pts.length - 4) { ell(ctx, x, y - r * 0.2, r * 0.6, r * 0.45); ctx.fillStyle = INK; ctx.fill(); } });
+      pts.forEach(([x, y, r], i) => { if (i % 3 === 2 && i < pts.length - 4) { ell(ctx, x, y + r * 0.5, r * 0.45, r * 0.25); ctx.fillStyle = '#b8b8b8'; ctx.fill(); } });
+      const [hx, hy] = pts[pts.length - 1];
+      // broad, flat head
+      shape(ctx, '#7a7a7a', () => { ctx.beginPath(); ctx.moveTo(hx - 3, hy - 6); ctx.quadraticCurveTo(hx + 8, hy - 9, hx + 15, hy - 3);
+        ctx.quadraticCurveTo(hx + 16, hy + 2, hx + 10, hy + 4); ctx.lineTo(hx - 3, hy + 5); ctx.closePath(); });
+      dot(ctx, hx + 8, hy - 4.5, 1.5); dot(ctx, hx + 8.4, hy - 4.9, 0.5, WHITE);
+      strokeLine(ctx, [hx + 2, hy - 6, hx + 9, hy - 7], 1, INK, false);
+      strokeLine(ctx, [hx + 3, hy + 1.5, hx + 14, hy], 1, '#444', false);
+      if (m && Math.sin(ph * 3) > 0.6) strokeLine(ctx, [hx + 16, hy, hx + 22, hy, hx + 24, hy - 2], 1.1, INK, false);
+    },
+
+    shark(ctx, ph, m, baby) {
+      const G = '#9a9a9a', sw = Math.sin(ph * 1.2) * (m ? 1 : 0.4);
+      ell(ctx, 0, 0, 34, 4); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -26 + Math.sin(ph * 0.5) * 1.5);
+      // tail (upper lobe longer)
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(-40, -3); ctx.lineTo(-62, -22 + sw * 4); ctx.lineTo(-54, 0); ctx.lineTo(-58, 12 + sw * 3); ctx.lineTo(-40, 3); ctx.closePath(); });
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(-26, 6); ctx.lineTo(-32, 13); ctx.lineTo(-20, 8); ctx.closePath(); }, 1.8);
+      const body = () => { ctx.beginPath(); ctx.moveTo(52, 2); ctx.quadraticCurveTo(34, -16, -6, -12); ctx.quadraticCurveTo(-30, -9, -44, -2);
+        ctx.lineTo(-44, 2); ctx.quadraticCurveTo(-28, 9, 0, 10); ctx.quadraticCurveTo(38, 11, 52, 2); ctx.closePath(); };
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(6, -12); ctx.lineTo(-8, -36); ctx.lineTo(-18, -10); ctx.closePath(); });
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(-28, -8); ctx.lineTo(-33, -16); ctx.lineTo(-36, -6); ctx.closePath(); }, 1.8);
+      shape(ctx, G, body);
+      clipTo(ctx, body, () => { ctx.fillStyle = WHITE; ell(ctx, 12, 11, 46, 7); ctx.fill(); });
+      ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+      [22, 25.5, 29].forEach(x => strokeLine(ctx, [x, -6, x - 1, 3], 1.1, '#555', false));
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(14, 5); ctx.lineTo(0, 22 + sw * 2); ctx.lineTo(-2, 7); ctx.closePath(); });
+      dot(ctx, 40, -3, 1.8);
+      strokeLine(ctx, [35, 5, 46, 6], 1.2, INK, false);
+      ctx.restore();
+    },
+
+    orca(ctx, ph, m, baby) {
+      const sw = Math.sin(ph * 1.1) * (m ? 1 : 0.4);
+      ell(ctx, 0, 0, 44, 5); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -30 + Math.sin(ph * 0.5) * 1.5);
+      // flukes beat up and down
+      ctx.save(); ctx.translate(-50, 0); ctx.rotate(sw * 0.25);
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(-18, -10); ctx.quadraticCurveTo(-24, -4, -16, 0); ctx.quadraticCurveTo(-24, 6, -18, 9); ctx.lineTo(4, 4); ctx.closePath(); });
+      ctx.restore();
+      const fin = baby ? 0.5 : 1;
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(4, -15); ctx.lineTo(-2, -15 - 34 * fin); ctx.quadraticCurveTo(-8, -16 - 20 * fin, -14, -14); ctx.closePath(); });
+      const body = () => { ctx.beginPath(); ctx.moveTo(58, 2); ctx.quadraticCurveTo(52, -16, 20, -17); ctx.quadraticCurveTo(-24, -16, -52, -3);
+        ctx.lineTo(-52, 3); ctx.quadraticCurveTo(-20, 16, 10, 16); ctx.quadraticCurveTo(48, 16, 58, 2); ctx.closePath(); };
+      shape(ctx, INK, body);
+      const patch = baby ? '#dedede' : WHITE;
+      clipTo(ctx, body, () => {
+        ctx.fillStyle = patch; ell(ctx, 22, 16, 34, 7); ctx.fill();
+        ell(ctx, -18, 12, 16, 5, -0.25); ctx.fill();
+        ell(ctx, 38, -7, 8, 3.2, -0.1); ctx.fill();
+        ctx.fillStyle = '#9a9a9a'; ell(ctx, -16, -15, 10, 4); ctx.fill();
+      });
+      ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(28, 8); ctx.quadraticCurveTo(22, 24 + sw * 2, 12, 22 + sw * 2); ctx.quadraticCurveTo(16, 14, 18, 8); ctx.closePath(); }, 1.6);
+      dot(ctx, 44, -4, 1.4, '#555');
+      ctx.restore();
+    },
+
+    triceratops(ctx, ph, m, baby) {
+      const T = '#c2c2c2', TF = '#959595', FR = '#9d9d9d';
+      const bob = Math.sin(ph * 2) * 1.2 * m, nod = Math.sin(ph) * 1.5 * m, sw = Math.sin(ph * 0.8) * m;
+      const d = quadLegs(ctx, { ph, A: 0.3 * m, B: 0.45 * m, hindX: -26, foreX: 26, hl: 20, fl: 16,
+        w: 15, near: T, far: TF, foot: null, lf: baby ? 0.75 : 1 });
+      ctx.save(); ctx.translate(0, d + bob);
+      const tail = () => { ctx.beginPath(); ctx.moveTo(-34, -70); ctx.quadraticCurveTo(-64, -62, -86, -38 + sw * 4); ctx.quadraticCurveTo(-62, -46, -34, -40); ctx.closePath(); };
+      const k = baby ? 1.4 : 1, P = gp(k, 42, -60 + nod);
+      const C = (x, y, rx, ry, rot = 0) => () => { const [a, b] = P(x, y + nod); ell(ctx, a, b, rx * k, ry * k, rot); };
+      blob(ctx, T, [() => ell(ctx, 0, -54, 44, 24), tail]);
+      grow(ctx, k, 42, -60 + nod, () => {
+        // bony frill, tilted back behind the head
+        const fs = baby ? 0.6 : 1, fx = 46, fy = -66 + nod;
+        const frill = () => ell(ctx, fx, fy, 12 * fs, 21 * fs, -0.55);
+        shape(ctx, FR, frill);
+        for (let i = 0; i < 9; i++) { const a = -2.9 + i * 0.36;
+          const px = fx + Math.cos(a) * 12 * fs, py = fy + Math.sin(a) * 21 * fs;
+          const rx = px * Math.cos(-0.55) - 0, ry = 0;
+          dot(ctx, fx + (px - fx) * Math.cos(-0.55) - (py - fy) * Math.sin(-0.55), fy + (px - fx) * Math.sin(-0.55) + (py - fy) * Math.cos(-0.55), 1.6, '#555'); }
+      });
+      blob(ctx, T, [C(56, -56, 16, 11, 0.3), C(68, -48, 9, 7, 0.5)]);
+      grow(ctx, k, 42, -60 + nod, () => {
+        const h = baby ? 0.25 : 1, y = nod;
+        shape(ctx, '#ededed', () => hornPath(ctx, 52, -64 + y, 58, -62 + y, 52 + 28 * h, -64 - 14 * h + y, 2), 1.6);
+        shape(ctx, '#ededed', () => hornPath(ctx, 68, -54 + y, 73, -52 + y, 72 + 2 * h, -54 - 9 * h + y), 1.4);
+        shape(ctx, '#777', () => { ctx.beginPath(); ctx.moveTo(72, -48 + y); ctx.quadraticCurveTo(82, -46 + y, 78, -38 + y); ctx.lineTo(70, -42 + y); ctx.closePath(); }, 1.4);
+        dot(ctx, 58, -57 + y, 1.9); dot(ctx, 58.5, -57.5 + y, 0.6, WHITE);
+      });
+      [[-24, -68], [-8, -72], [8, -72], [22, -68]].forEach(([x, y]) => strokeLine(ctx, [x, y, x + 3, y + 8], 1, '#8a8a8a', false));
+      ctx.restore();
+    },
+
+    unicorn(ctx, ph, m, baby) {
+      const U = '#ffffff', UF = '#d6d6d6';
+      const bob = Math.sin(ph * 2) * 1.5 * m, nod = Math.sin(ph) * 2 * m, sway = Math.sin(ph * 0.7);
+      const d = quadLegs(ctx, { ph, A: 0.42 * m, B: 0.6 * m, hindX: -24, foreX: 24, hl: 24, fl: 24,
+        w: 8, near: U, far: UF, foot: 'hoof', lf: baby ? 0.85 : 1 });
+      ctx.save(); ctx.translate(0, d);
+      // flowing tail
+      const tl = baby ? 0.6 : 1;
+      [0, 3, 6].forEach((o, i) => strokeLine(ctx, [-33, -60 + bob, -46, -60 + o, -48 + sway * 4, (-34 + o) * tl - (baby ? 18 : 0), -40 + sway * 6 - i * 2, (-22 + o) * tl - (baby ? 22 : 0)], 2.6, i === 1 ? '#e6e6e6' : U));
+      ctx.save(); ctx.translate(0, bob);
+      const k = baby ? 1.35 : 1, P = gp(k, 42, -86 + nod);
+      const body = () => ell(ctx, 0, -56, 34, 15);
+      const neck = () => { ctx.beginPath(); ctx.moveTo(18, -66); ctx.lineTo(32, -60); ctx.lineTo(48, -86 + nod); ctx.lineTo(36, -94 + nod); ctx.closePath(); };
+      const [hx, hy] = P(48, -84 + nod);
+      blob(ctx, U, [body, neck, () => ell(ctx, hx, hy, 15 * k, 7 * k, 0.65)]);
+      // mane: hangs over the near side of the neck, with a wavy outer edge along the crest
+      const mw = baby ? 6 : 10, edge = t => [38 - 22 * t, -96 + 30 * t + nod * (1 - t)];
+      shape(ctx, '#ececec', () => {
+        ctx.beginPath();
+        for (let i = 0; i <= 8; i++) { const t = i / 8, [x, y] = edge(t), w = i % 2 ? 4 : 1; i ? ctx.lineTo(x - w, y - w * 0.5) : ctx.moveTo(x - w, y); }
+        for (let i = 8; i >= 0; i--) { const t = i / 8, [x, y] = edge(t), wav = Math.sin(i * 1.3 + sway * 2) * 2;
+          ctx.lineTo(x + mw + wav, y + mw * 0.55 + 2); }
+        ctx.closePath(); }, 1.8);
+      for (let i = 1; i < 8; i += 2) { const t = i / 8, [x, y] = edge(t); strokeLine(ctx, [x + 1, y + 1, x + mw * 0.8, y + mw * 0.5 + 1], 0.9, '#aaa', false); }
+      grow(ctx, k, 42, -86 + nod, () => {
+        const h = baby ? 0.3 : 1;
+        shape(ctx, '#f4f4f4', () => hornPath(ctx, 39, -95 + nod, 44, -93 + nod, 46 + 8 * h, -94 - 24 * h + nod), 1.5);
+        if (!baby) for (let i = 1; i <= 4; i++) { const t = i / 5; strokeLine(ctx, [39 + 8 * t, -95 - 22 * t + nod, 44 + 6 * t, -93 - 22 * t + nod], 0.9, '#999', false); }
+        shape(ctx, U, () => { ctx.beginPath(); ctx.moveTo(36, -91 + nod); ctx.lineTo(34, -101 + nod); ctx.lineTo(40, -92 + nod); ctx.closePath(); }, 1.8);
+        dot(ctx, 47, -87 + nod, baby ? 2.1 : 1.8); strokeLine(ctx, [44, -89 + nod, 46, -90 + nod], 0.9, INK, false);
+        dot(ctx, 57, -74 + nod, 1.1, '#888');
+      });
+      ctx.restore(); ctx.restore();
+    },
+
+    // An original take on the "king of serpents" from old legends: a huge serpent with a crown-like crest.
+    basilisk(ctx, ph, m, baby) {
+      const len = 190, th = baby ? 7.5 : 9.5, amp = m ? 10 : 6;
+      const pts = snakePts(ph * (m ? 1 : 0.1) + 0.6, m, len, th, amp, baby ? 26 : 62);
+      tube(ctx, pts, '#3a3a3a');
+      pts.forEach(([x, y, r], i) => { if (i % 2 === 0 && i < pts.length - 2) strokeLine(ctx, [x - r * 0.4, y - r * 0.5, x, y - r * 0.1, x + r * 0.4, y - r * 0.5], 1, '#6e6e6e', false); });
+      pts.forEach(([x, y, r], i) => { if (i % 3 === 0 && i < pts.length - 2) { ell(ctx, x, y + r * 0.5, r * 0.5, r * 0.25); ctx.fillStyle = '#8a8a8a'; ctx.fill(); } });
+      const [hx, hy, hr] = pts[pts.length - 1];
+      const c = baby ? 0.45 : 1;
+      // crown crest: three spikes
+      [[-6, -14, -2], [0, -18, 3], [6, -13, 7]].forEach(([bx, ty, tx]) =>
+        shape(ctx, '#bdbdbd', () => { ctx.beginPath(); ctx.moveTo(hx + bx - 3, hy - hr * 0.7); ctx.lineTo(hx + tx * c, hy - hr * 0.7 + ty * c); ctx.lineTo(hx + bx + 4, hy - hr * 0.6); ctx.closePath(); }, 1.5));
+      shape(ctx, '#3a3a3a', () => ell(ctx, hx + 9, hy, hr * 1.45, hr * 0.95, 0.12));
+      ell(ctx, hx + 10, hy - 4, 3.4, 2.4); ctx.fillStyle = WHITE; ctx.fill();
+      strokeLine(ctx, [hx + 10, hy - 6, hx + 10, hy - 2], 1, INK, false);
+      strokeLine(ctx, [hx + 4, hy + 3, hx + 24, hy + 1], 1.2, '#999', false);
+      if (!baby) [hx + 18, hx + 21].forEach(x => strokeLine(ctx, [x, hy + 1.5, x - 0.5, hy + 6], 1.4, WHITE, false));
+    },
+  });
+
+  // ---------- front and back views for the new animals (2026-10-08, pending approval) ----------
+  // A snake seen coming toward you (front) or going away (back): a wiggling body that narrows into the distance.
+  function snakeFB(ctx, ph, m, front, len, th, fill, lift) {
+    const pts = [];
+    for (let i = 0; i <= 28; i++) {
+      const t = i / 28;                                     // 0 = nearest the camera, 1 = farthest away
+      const persp = 1 - t * 0.55, y = -th - t * len * 0.45, x = Math.sin(t * 8 - ph * 1.6) * 11 * (0.3 + t) * (m ? 1 : 0.6);
+      const r = th * persp * (front ? (t < 0.08 ? 0.9 : t > 0.6 ? 1 - (t - 0.6) * 1.6 : 1) : (t < 0.4 ? 0.45 + t * 1.4 : 1));
+      pts.push([x, y - (front && lift ? lift * Math.max(0, 1 - t / 0.3) : 0), Math.max(1.5, r)]);
+    }
+    const draw = pts.slice().reverse();                     // far end first, so the near end sits on top
+    tube(ctx, draw, fill);
+    return pts[0];
+  }
+
+  Object.assign(FB, {
+    hippo(ctx, ph, m, baby, view) {
+      const H = '#a9a9a9', HF = '#7f7f7f', F = view === 'front', bob = bobOf(ph, m) * 0.8, sx = swayOf(ph, m), k = baby ? 1.4 : 1;
+      const L = { ph, m, spread: 17, farSpread: 14, nLen: 24, fLen: 24, depth: 7, w: 15, near: H, far: HF, foot: null, lf: baby ? 0.8 : 1 };
+      const d = legsFB(ctx, L, 'far');
+      bodyLayer(ctx, sx, d + bob, () => shape(ctx, H, () => ell(ctx, 0, -42, 33, 24)));
+      legsFB(ctx, L, 'near');
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (F) grow(ctx, k, 0, -36, () => {
+          blob(ctx, H, [() => ell(ctx, 0, -44, 18, 15), () => ell(ctx, 0, -30, 22, 12), () => ell(ctx, -12, -56, 4, 3.5), () => ell(ctx, 12, -56, 4, 3.5),
+            () => ell(ctx, -8, -51, 5.5, 5), () => ell(ctx, 8, -51, 5.5, 5)]);
+          [-1, 1].forEach(s => { dot(ctx, s * 8, -52, 1.8); dot(ctx, s * 7.4, -52.6, 0.6, WHITE); shape(ctx, H, () => ell(ctx, s * 7, -35, 3.5, 2.6), 1.5); dot(ctx, s * 7, -35.5, 1.2); });
+          strokeLine(ctx, [-16, -25, 0, -22, 16, -25], 1.4, INK, false);
+        });
+        else strokeLine(ctx, [0, -40, 0, -32, 2 * Math.sin(ph) * m, -26], 2.4, H);
+      });
+    },
+
+    rhino(ctx, ph, m, baby, view) {
+      const R = '#b8b8b8', RF = '#8c8c8c', F = view === 'front', bob = bobOf(ph, m), sx = swayOf(ph, m), k = baby ? 1.35 : 1, sw = Math.sin(ph * 0.8) * m;
+      const L = { ph, m, spread: 15, farSpread: 12, nLen: 34, fLen: 34, depth: 7, w: 13, near: R, far: RF, foot: null, lf: baby ? 0.78 : 1 };
+      const d = legsFB(ctx, L, 'far');
+      bodyLayer(ctx, sx, d + bob, () => { if (!F) grow(ctx, k, 0, -60, () => shape(ctx, R, () => ell(ctx, 0, -68, 12, 10))); shape(ctx, R, () => ell(ctx, 0, -50, 27, 23)); });
+      legsFB(ctx, L, 'near');
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (F) grow(ctx, k, 0, -50, () => {
+          const big = baby ? 0.25 : 1, small = baby ? 0.15 : 1;
+          [-1, 1].forEach(s => shape(ctx, R, () => { ctx.beginPath(); ctx.moveTo(s * 8, -62); ctx.lineTo(s * 14, -74); ctx.lineTo(s * 13, -60); ctx.closePath(); }, 1.8));
+          shape(ctx, R, () => { ctx.beginPath(); ctx.moveTo(-11, -64); ctx.lineTo(11, -64); ctx.lineTo(8, -34); ctx.quadraticCurveTo(0, -30, -8, -34); ctx.closePath(); });
+          shape(ctx, '#e8e8e8', () => hornPath(ctx, -3, -54, 3, -54, 0, -54 - 10 * small), 1.4);
+          shape(ctx, '#e8e8e8', () => hornPath(ctx, -5, -40, 5, -40, 0, -40 - 26 * big), 1.6);
+          [-1, 1].forEach(s => { dot(ctx, s * 9, -55, 1.6); dot(ctx, s * 3.5, -34, 1.1); });
+        });
+        else {
+          strokeLine(ctx, [0, -56, sw * 2, -46, sw * 3, -40], 2, R);
+          shape(ctx, INK, () => ell(ctx, sw * 3, -39, 2, 3.5));
+          strokeLine(ctx, [0, -72, 0, -56], 1, '#888', false);
+        }
+      });
+    },
+
+    ostrich(ctx, ph, m, baby, view) {
+      const F = view === 'front', bob = bobOf(ph, m) * 1.2, sw = Math.sin(ph) * 2 * m, lf = baby ? 0.55 : 1, L = 68 * lf;
+      [-1, 1].forEach((s, i) => {
+        const lift = Math.max(0, Math.sin(ph + i * Math.PI)) * 7 * m * lf;
+        legFB(ctx, s * 6, -L, -lift - (F ? 0 : 2), 0, baby ? 4 : 4.5, i ? '#b9b9b9' : '#dedede', 'bird');
+      });
+      ctx.save(); ctx.translate(0, 68 * (1 - lf) + bob);
+      if (baby) {
+        const body = () => fuzz(ctx, 0, -80, 15, 14);
+        if (!F) strokeLine(ctx, [0, -86, sw, -100], 5.5, '#c4c4c4');
+        shape(ctx, '#bdbdbd', body);
+        clipTo(ctx, body, () => [-6, 0, 6].forEach(x => strokeLine(ctx, [x, -96, x, -64], 2.2, '#6a6a6a', false)));
+        if (F) {
+          strokeLine(ctx, [0, -86, sw, -98], 5.5, '#c4c4c4');
+          shape(ctx, '#c4c4c4', () => fuzz(ctx, sw, -104, 7.5, 7, 12), 2);
+          [-1, 1].forEach(s => dot(ctx, sw + s * 3, -105, 1.7));
+          shape(ctx, '#999', () => ell(ctx, sw, -100, 3, 2), 1.1);
+        } else shape(ctx, '#c4c4c4', () => fuzz(ctx, sw, -104, 7.5, 7, 12), 2);
+      } else {
+        if (!F) { strokeLine(ctx, [0, -90, sw, -140], 5, '#d8d8d8'); shape(ctx, '#d8d8d8', () => ell(ctx, sw, -143, 6, 5.5), 1.8); }
+        shape(ctx, INK, () => fuzz(ctx, 0, -80, 24, 17, 26));
+        [-1, 1].forEach(s => shape(ctx, WHITE, () => ell(ctx, s * 19, -78, 6, 9, s * 0.3), 1.6));
+        if (!F) shape(ctx, WHITE, () => fuzz(ctx, 0, -84, 11, 8, 12), 1.6);
+        if (F) {
+          strokeLine(ctx, [0, -90, sw, -140], 5, '#d8d8d8');
+          shape(ctx, '#d8d8d8', () => ell(ctx, sw, -143, 6.5, 6), 1.8);
+          [-1, 1].forEach(s => { dot(ctx, sw + s * 3.4, -144.5, 1.9); dot(ctx, sw + s * 3.4 - 0.4, -145, 0.6, WHITE); });
+          shape(ctx, '#b0b0b0', () => ell(ctx, sw, -139, 4, 2.4), 1.1);
+        }
+      }
+      ctx.restore();
+    },
+
+    seahawk(ctx, ph, m, baby, view) {
+      const F = view === 'front', D = '#4a4a4a';
+      if (baby) {
+        const hop = Math.abs(Math.sin(ph * 1.5)) * 4 * m;
+        [-3, 3].forEach(x => strokeLine(ctx, [x, -9 - hop, x, -1 - hop], 2.4, '#888'));
+        ctx.save(); ctx.translate(0, -hop);
+        shape(ctx, '#bdbdbd', () => fuzz(ctx, 0, -20, 12, 13, 16));
+        shape(ctx, '#d6d6d6', () => fuzz(ctx, 0, -38, 9, 8.5, 14), 2);
+        if (F) { [-1, 1].forEach(s => { strokeLine(ctx, [s * 2, -40, s * 8, -38], 1.8, INK, false); dot(ctx, s * 3.5, -40, 1.6); });
+          shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(-2, -37); ctx.lineTo(2, -37); ctx.lineTo(0, -32); ctx.closePath(); }, 1); }
+        ctx.restore();
+        return;
+      }
+      if (m) {
+        // flying toward / away from you: wings stretched out to the sides, flapping
+        const lift = 18 + Math.sin(ph * 0.5) * 2, f = Math.sin(ph * 1.6);
+        ell(ctx, 0, 0, 16, 3); ctx.fillStyle = 'rgba(0,0,0,0.13)'; ctx.fill();
+        ctx.save(); ctx.translate(0, -lift);
+        [-1, 1].forEach(s => shape(ctx, F ? D : '#5a5a5a', () => { ctx.beginPath(); ctx.moveTo(s * 4, -26); ctx.lineTo(s * 16, -30 - 9 * f); ctx.lineTo(s * 32, -24 - 16 * f);
+          ctx.lineTo(s * 30, -20 - 14 * f); ctx.lineTo(s * 26, -21 - 12 * f); ctx.lineTo(s * 15, -22 - 6 * f); ctx.lineTo(s * 4, -20); ctx.closePath(); }, 1.8));
+        if (F) { [-1, 1].forEach(s => shape(ctx, WHITE, () => { ctx.beginPath(); ctx.moveTo(s * 5, -23); ctx.lineTo(s * 15, -24 - 6 * f); ctx.lineTo(s * 14, -21 - 5 * f); ctx.lineTo(s * 5, -20.5); ctx.closePath(); }, 1)); }
+        shape(ctx, F ? WHITE : D, () => ell(ctx, 0, -23, 6, 8));
+        if (!F) shape(ctx, D, () => { ctx.beginPath(); ctx.moveTo(-4, -17); ctx.lineTo(4, -17); ctx.lineTo(5, -9); ctx.lineTo(-5, -9); ctx.closePath(); }, 1.6);
+        shape(ctx, WHITE, () => ell(ctx, 0, -33, 5.5, 5));
+        if (F) { [-1, 1].forEach(s => { strokeLine(ctx, [s * 1.5, -34, s * 5.5, -32], 1.8, INK, false); dot(ctx, s * 2.5, -34, 1.2); });
+          shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(-1.6, -31.5); ctx.lineTo(1.6, -31.5); ctx.lineTo(0, -27.5); ctx.closePath(); }, 1); }
+        else strokeLine(ctx, [-3, -34, 3, -34], 2, INK, false);
+        ctx.restore();
+        return;
+      }
+      [-3, 3].forEach(x => { strokeLine(ctx, [x, -14, x, -2], 2.6, '#9a9a9a'); strokeLine(ctx, [x - 2.5, -1, x + 2.5, -1], 1.6, INK, false); });
+      if (!F) shape(ctx, D, () => { ctx.beginPath(); ctx.moveTo(-5, -14); ctx.lineTo(5, -14); ctx.lineTo(6, -2); ctx.lineTo(-6, -2); ctx.closePath(); }, 1.8);
+      shape(ctx, D, () => ell(ctx, 0, -27, 11.5, 16));
+      if (F) { ctx.fillStyle = WHITE; ell(ctx, 0, -25, 6.5, 13); ctx.fill(); }
+      shape(ctx, WHITE, () => ell(ctx, 0, -45, 7.5, 7));
+      if (F) { [-1, 1].forEach(s => { strokeLine(ctx, [s * 2, -46, s * 7, -43], 2, INK, false); dot(ctx, s * 3, -46.5, 1.4); });
+        shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(-2, -43); ctx.lineTo(2, -43); ctx.lineTo(0, -37.5); ctx.closePath(); }, 1); }
+      else strokeLine(ctx, [-5, -45, 5, -45], 2.4, INK, false);
+    },
+
+    polarbear(ctx, ph, m, baby, view) {
+      const B1 = '#f7f7f7', B2 = '#d2d2d2', F = view === 'front', bob = bobOf(ph, m), sx = swayOf(ph, m), k = baby ? 1.45 : 1;
+      const L = { ph, m, spread: 13, farSpread: 11, nLen: 40, fLen: 40, depth: 8, w: 13, near: B1, far: B2, foot: null, lf: baby ? 0.72 : 1 };
+      const d = legsFB(ctx, L, 'far');
+      const H = (x, y, rx, ry = rx) => { const [a, b, rr] = gp(k, 0, -56)(x, y, rx); return () => ell(ctx, a, b, rr, ry * k); };
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (F) shape(ctx, B1, () => ell(ctx, 0, -52, 24, 22));
+        else blob(ctx, B1, [H(0, -66, 9), H(-7, -74, 3.4), H(7, -74, 3.4), () => ell(ctx, 0, -52, 26, 25)]);
+      });
+      legsFB(ctx, L, 'near');
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (F) {
+          blob(ctx, B1, [() => ell(ctx, 0, -62, 11, 9), H(0, -60, 10, 9), H(0, -52, 7, 6), H(-8, -70, 3.4), H(8, -70, 3.4)]);
+          grow(ctx, k, 0, -56, () => {
+            dot(ctx, 0, -53, 2.6); strokeLine(ctx, [0, -51, 0, -48.5], 1, INK, false);
+            [-1, 1].forEach(s => dot(ctx, s * 4.5, -62, 1.8));
+          });
+        } else shape(ctx, B1, () => ell(ctx, 0, -62, 3.5, 3), 1.8);
+      });
+    },
+
+    anaconda(ctx, ph, m, baby, view) {
+      const F = view === 'front', th = baby ? 6 : 6.5;
+      const [hx, hy] = snakeFB(ctx, ph * (m ? 1 : 0.1) + 0.6, m, F, 150, th, '#7a7a7a', 0);
+      if (F) {
+        shape(ctx, '#7a7a7a', () => ell(ctx, hx, hy - 2, 8, 6));
+        [-1, 1].forEach(s => { dot(ctx, hx + s * 4, hy - 4, 1.5); dot(ctx, hx + s * 4 - 0.4, hy - 4.4, 0.5, WHITE); });
+        if (m && Math.sin(ph * 3) > 0.6) strokeLine(ctx, [hx, hy + 2, hx, hy + 7, hx - 2, hy + 9], 1.1, INK, false);
+      }
+    },
+
+    basilisk(ctx, ph, m, baby, view) {
+      const F = view === 'front', th = baby ? 7.5 : 9.5, c = baby ? 0.45 : 1;
+      const [hx, hy] = snakeFB(ctx, ph * (m ? 1 : 0.1) + 0.6, m, F, 190, th, '#3a3a3a', F ? (baby ? 26 : 58) : 0);
+      if (F) {
+        [[-8, -16], [0, -21], [8, -16]].forEach(([dx, ty]) =>
+          shape(ctx, '#bdbdbd', () => { ctx.beginPath(); ctx.moveTo(hx + dx - 3.5, hy - 6); ctx.lineTo(hx + dx * 1.2 * c, hy - 6 + ty * c); ctx.lineTo(hx + dx + 3.5, hy - 6); ctx.closePath(); }, 1.5));
+        shape(ctx, '#3a3a3a', () => ell(ctx, hx, hy, 12, 9));
+        [-1, 1].forEach(s => { ell(ctx, hx + s * 5, hy - 2, 3.2, 2.2); ctx.fillStyle = WHITE; ctx.fill(); strokeLine(ctx, [hx + s * 5, hy - 4, hx + s * 5, hy], 1, INK, false); });
+        if (!baby) [-1, 1].forEach(s => strokeLine(ctx, [hx + s * 3, hy + 5, hx + s * 2.6, hy + 10], 1.4, WHITE, false));
+      } else {
+        // going away: the crest shows at the far end
+        const [fx, fy] = [Math.sin(1 * 8 - ph * 1.6) * 11 * 1.3 * (m ? 1 : 0.6), -th - 190 * 0.45];
+        shape(ctx, '#bdbdbd', () => { ctx.beginPath(); ctx.moveTo(fx - 4, fy - 2); ctx.lineTo(fx, fy - 10 * c); ctx.lineTo(fx + 4, fy - 2); ctx.closePath(); }, 1.3);
+      }
+    },
+
+    shark(ctx, ph, m, baby, view) {
+      const F = view === 'front', G = '#9a9a9a', sw = Math.sin(ph * 1.2) * (m ? 1 : 0.4);
+      ell(ctx, 0, 0, 16, 3.5); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -26 + Math.sin(ph * 0.5) * 1.5);
+      if (!F) shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(-2 + sw * 3, -2); ctx.lineTo(sw * 6, -24); ctx.lineTo(2 + sw * 3, -2); ctx.lineTo(sw * 5, 12); ctx.closePath(); });
+      shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(-3, -11); ctx.lineTo(0, -32); ctx.lineTo(3, -11); ctx.closePath(); });
+      [-1, 1].forEach(s => shape(ctx, G, () => { ctx.beginPath(); ctx.moveTo(s * 10, 2); ctx.lineTo(s * 28, 12 + sw * s * 2); ctx.lineTo(s * 10, 7); ctx.closePath(); }));
+      const body = () => ell(ctx, 0, 0, 13, 12);
+      shape(ctx, G, body);
+      clipTo(ctx, body, () => { ctx.fillStyle = WHITE; ell(ctx, 0, 9, 12, 7); ctx.fill(); });
+      ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+      if (F) { [-1, 1].forEach(s => dot(ctx, s * 8, -2, 1.7)); strokeLine(ctx, [-6, 5, 0, 7, 6, 5], 1.3, INK, false); }
+      ctx.restore();
+    },
+
+    orca(ctx, ph, m, baby, view) {
+      const F = view === 'front', sw = Math.sin(ph * 1.1) * (m ? 1 : 0.4), fin = baby ? 0.5 : 1, patch = baby ? '#dedede' : WHITE;
+      ell(ctx, 0, 0, 20, 4); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -30 + Math.sin(ph * 0.5) * 1.5);
+      if (!F) shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(-4, 2 + sw * 3); ctx.lineTo(-24, -2 + sw * 6); ctx.quadraticCurveTo(-18, 6 + sw * 5, -2, 7 + sw * 3);
+        ctx.lineTo(2, 7 + sw * 3); ctx.quadraticCurveTo(18, 6 + sw * 5, 24, -2 + sw * 6); ctx.lineTo(4, 2 + sw * 3); ctx.closePath(); });
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(-3.5, -14); ctx.lineTo(0, -14 - 32 * fin); ctx.lineTo(3.5, -14); ctx.closePath(); });
+      [-1, 1].forEach(s => shape(ctx, INK, () => ell(ctx, s * 19, 10 + sw * s * 2, 9, 4, s * 0.5), 1.6));
+      const body = () => ell(ctx, 0, 0, 17, 16);
+      shape(ctx, INK, body);
+      clipTo(ctx, body, () => {
+        ctx.fillStyle = patch; ell(ctx, 0, 12, 10, 7); ctx.fill();
+        if (F) [-1, 1].forEach(s => { ell(ctx, s * 9, -5, 4.5, 2.6, s * -0.3); ctx.fill(); });
+        else { ctx.fillStyle = '#9a9a9a'; ell(ctx, 0, -12, 9, 4); ctx.fill(); }
+      });
+      ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+      ctx.restore();
+    },
+
+    triceratops(ctx, ph, m, baby, view) {
+      const T = '#c2c2c2', TF = '#959595', FR = '#9d9d9d', F = view === 'front', bob = bobOf(ph, m) * 0.8, sx = swayOf(ph, m), k = baby ? 1.4 : 1, sw = Math.sin(ph * 0.8) * m;
+      const L = { ph, m, spread: 18, farSpread: 15, nLen: 36, fLen: 34, depth: 8, w: 15, near: T, far: TF, foot: null, lf: baby ? 0.75 : 1 };
+      const d = legsFB(ctx, L, 'far');
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (!F) grow(ctx, k, 0, -60, () => shape(ctx, FR, () => ell(ctx, 0, -76, 24 * (baby ? 0.6 : 1), 16 * (baby ? 0.6 : 1))));
+        shape(ctx, T, () => ell(ctx, 0, -52, 30, 25));
+      });
+      legsFB(ctx, L, 'near');
+      bodyLayer(ctx, sx, d + bob, () => {
+        if (F) grow(ctx, k, 0, -52, () => {
+          const fs = baby ? 0.6 : 1, h = baby ? 0.25 : 1;
+          shape(ctx, FR, () => ell(ctx, 0, -66, 28 * fs, 20 * fs));
+          for (let i = 0; i < 11; i++) { const a = Math.PI + i * Math.PI / 10; dot(ctx, Math.cos(a) * 25 * fs, -66 + Math.sin(a) * 17 * fs, 1.6, '#555'); }
+          shape(ctx, T, () => ell(ctx, 0, -52, 13, 15));
+          [-1, 1].forEach(s => shape(ctx, '#ededed', () => hornPath(ctx, s * 5, -60, s * 9, -58, s * (8 + 6 * h), -60 - 22 * h), 1.6));
+          shape(ctx, '#ededed', () => hornPath(ctx, -2.5, -46, 2.5, -46, 0, -46 - 8 * h), 1.3);
+          shape(ctx, '#777', () => { ctx.beginPath(); ctx.moveTo(-5, -42); ctx.lineTo(5, -42); ctx.lineTo(0, -34); ctx.closePath(); }, 1.3);
+          [-1, 1].forEach(s => { dot(ctx, s * 7, -55, 1.8); dot(ctx, s * 7 - 0.5, -55.5, 0.6, WHITE); });
+        });
+        else blob(ctx, T, [() => { ctx.beginPath(); ctx.moveTo(-12, -54); ctx.quadraticCurveTo(sw * 6, -34, sw * 10, -20); ctx.quadraticCurveTo(sw * 4, -30, 12, -54); ctx.closePath(); }]);
+      });
+    },
+
+    unicorn(ctx, ph, m, baby, view) {
+      const F = view === 'front', U = WHITE, UF = '#d6d6d6', bob = bobOf(ph, m), sx = swayOf(ph, m), nod = Math.sin(ph) * 2 * m, k = baby ? 1.35 : 1, sway = Math.sin(ph * 0.7);
+      const L = { ph, m, spread: 11, farSpread: 9, nLen: 48, fLen: 48, depth: 7, w: 9, near: U, far: UF, foot: 'hoof', lf: baby ? 0.85 : 1 };
+      const body = () => ell(ctx, 0, -56, 21, 16);
+      const neck = () => { ctx.beginPath(); ctx.moveTo(-8, -62); ctx.lineTo(8, -62); ctx.lineTo(5.5, -82 + nod); ctx.lineTo(-5.5, -82 + nod); ctx.closePath(); };
+      const mane = () => { const w = baby ? 4 : 7;
+        shape(ctx, '#ececec', () => { ctx.beginPath(); ctx.moveTo(-5, -92 + nod); for (let i = 0; i <= 6; i++) ctx.lineTo(-6 - w - (i % 2) * 3 + sway, -90 + i * 5 + nod * (1 - i / 6)); ctx.lineTo(-5, -62); ctx.closePath(); }, 1.6); };
+      const head = () => grow(ctx, k, 0, -80 + nod, () => {
+        const hy = -90 + nod, h = baby ? 0.3 : 1;
+        [-1, 1].forEach(s => shape(ctx, U, () => { ctx.beginPath(); ctx.moveTo(s * 2.5, hy - 9); ctx.lineTo(s * 7.5, hy - 18); ctx.lineTo(s * 7, hy - 8); ctx.closePath(); }));
+        if (F) {
+          shape(ctx, U, () => ell(ctx, 0, hy, 7.5, 13));
+          shape(ctx, '#f4f4f4', () => hornPath(ctx, -2.5, hy - 11, 2.5, hy - 11, 0, hy - 11 - 22 * h), 1.4);
+          if (!baby) for (let i = 1; i <= 4; i++) strokeLine(ctx, [-1.8 + i * 0.3, hy - 11 - i * 4.2, 1.8 - i * 0.3, hy - 12 - i * 4.2], 0.8, '#999', false);
+          shape(ctx, '#ececec', () => ell(ctx, 0, hy - 9, 5, 3), 1.2);
+          [-1, 1].forEach(s => { dot(ctx, s * 4, hy - 2, baby ? 1.7 : 1.4); dot(ctx, s * 2.4, hy + 10, 1, '#888'); });
+        } else {
+          shape(ctx, U, () => ell(ctx, 0, hy - 2, 6.5, 8));
+          shape(ctx, '#f4f4f4', () => hornPath(ctx, -2, hy - 9, 2, hy - 9, 0, hy - 9 - 16 * h), 1.3);
+        }
+      });
+      const d = legsFB(ctx, L, 'far');
+      if (F) {
+        bodyLayer(ctx, sx, d + bob, () => shape(ctx, U, body));
+        legsFB(ctx, L, 'near');
+        bodyLayer(ctx, sx, d + bob, () => { shape(ctx, U, neck); mane(); head(); });
+      } else {
+        bodyLayer(ctx, sx, d + bob, () => { shape(ctx, U, neck); mane(); head(); shape(ctx, U, body); });
+        legsFB(ctx, L, 'near');
+        bodyLayer(ctx, sx, d + bob, () => [0, 3, -3].forEach((o, i) => strokeLine(ctx, [o * 0.3, -60, o + sway * 3, -48, o * 1.5 + sway * 5, -30 + (baby ? 10 : 0)], 2.6, i === 0 ? U : '#e6e6e6')));
+      }
+    },
+  });
+
+  // ---------- aviary birds (2026-10-08, pending approval) ----------
+  // One drawing routine for every aviary bird; each species gets its own colors, beak, tail, and extras.
+  const BIRD = {
+    parrot:  { k: 1.0,  body: '#9a9a9a', wing: '#4f4f4f', head: '#9a9a9a', tail: '#6f6f6f', tailLen: 30, beak: 'hook', beakFill: '#ececec',
+               face: true, chick: '#c4c4c4' },
+    toucan:  { k: 0.95, body: '#262626', wing: '#1a1a1a', head: '#262626', tail: '#1a1a1a', tailLen: 13, beak: 'toucan', beakFill: '#e6e6e6',
+               throat: true, chick: '#555555' },
+    owl:     { k: 1.1,  body: '#8f8f8f', wing: '#6a6a6a', head: '#8f8f8f', tail: '#6a6a6a', tailLen: 7, beak: 'small', beakFill: '#333333',
+               owl: true, chick: '#e2e2e2' },
+    eagle:   { k: 1.25, body: '#3a3a3a', wing: '#2a2a2a', head: '#ffffff', tail: '#ffffff', tailLen: 14, beak: 'hook', beakFill: '#dcdcdc',
+               chick: '#a8a8a8' },
+  };
+  function birdBeak(ctx, c, x, y, s = 1) {
+    if (c.beak === 'toucan') {
+      shape(ctx, c.beakFill, () => { ctx.beginPath(); ctx.moveTo(x - 1, y - 4 * s); ctx.quadraticCurveTo(x + 18 * s, y - 7 * s, x + 23 * s, y + 3 * s);
+        ctx.quadraticCurveTo(x + 13 * s, y + 3 * s, x - 1, y + 4 * s); ctx.closePath(); }, 1.6);
+      shape(ctx, INK, () => { ctx.beginPath(); ctx.moveTo(x + 17 * s, y - 2 * s); ctx.quadraticCurveTo(x + 21 * s, y - 1 * s, x + 23 * s, y + 3 * s); ctx.lineTo(x + 17 * s, y + 3 * s); ctx.closePath(); }, 1);
+      strokeLine(ctx, [x, y, x + 20 * s, y + 1 * s], 0.9, '#777', false);
+    } else if (c.beak === 'small') {
+      shape(ctx, c.beakFill, () => { ctx.beginPath(); ctx.moveTo(x - 1, y - 2); ctx.quadraticCurveTo(x + 4, y - 1, x + 2.5, y + 3.5); ctx.lineTo(x - 1, y + 1); ctx.closePath(); }, 1);
+    } else {
+      shape(ctx, c.beakFill, () => { ctx.beginPath(); ctx.moveTo(x - 1, y - 3 * s); ctx.quadraticCurveTo(x + 7 * s, y - 3 * s, x + 6 * s, y + 4.5 * s); ctx.lineTo(x + 1, y + 1.5 * s); ctx.closePath(); }, 1.2);
+    }
+  }
+  // Big round owl eyes on a pale facial disc, or a plain eye for everyone else.
+  function birdEye(ctx, c, x, y) {
+    if (c.owl) { shape(ctx, WHITE, () => ell(ctx, x, y, 3, 3), 1.2); dot(ctx, x + 0.4, y, 1.7); dot(ctx, x, y - 0.6, 0.5, WHITE); }
+    else if (c.face) { shape(ctx, WHITE, () => ell(ctx, x - 1, y + 1, 4.5, 4), 1); dot(ctx, x, y, 1.4); }
+    else { dot(ctx, x, y, 1.5); dot(ctx, x - 0.4, y - 0.4, 0.5, WHITE); }
+  }
+  function birdSide(ctx, ph, m, baby, id) {
+    const c = BIRD[id];
+    ctx.save(); ctx.scale(c.k, c.k);
+    if (baby) {
+      const hop = Math.abs(Math.sin(ph * 1.5)) * 4 * m;
+      [-3, 3].forEach(x => strokeLine(ctx, [x, -9 - hop, x + 1, -1 - hop], 2.4, '#888'));
+      ctx.save(); ctx.translate(0, -hop);
+      shape(ctx, c.chick, () => fuzz(ctx, 0, -20, 12, 13, 16));
+      shape(ctx, c.chick, () => fuzz(ctx, 4, -37, c.owl ? 10 : 8.5, c.owl ? 9 : 8, 14), 2);
+      if (c.owl) [-1, 1].forEach(s => shape(ctx, c.chick, () => { ctx.beginPath(); ctx.moveTo(4 + s * 4, -44); ctx.lineTo(4 + s * 6, -49); ctx.lineTo(4 + s * 7, -43); ctx.closePath(); }, 1.2));
+      birdEye(ctx, c, 7, -39);
+      if (c.beak === 'toucan') birdBeak(ctx, { ...c, beak: 'hook' }, 11, -37, 0.8); else birdBeak(ctx, c, 11, -37, 0.7);
+      ctx.restore(); ctx.restore();
+      return;
+    }
+    if (m) {
+      // flying low, wings beating
+      const lift = 18 + Math.sin(ph * 0.5) * 2, f = Math.sin(ph * 1.6);
+      ell(ctx, 0, 0, 14, 3); ctx.fillStyle = 'rgba(0,0,0,0.13)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -lift);
+      const wing = (fill, k) => {
+        const pts = [[8, -25], [1, -25 - 13 * k], [-14, -25 - 31 * k], [-19, -25 - 27 * k], [-17, -25 - 21 * k], [-20, -25 - 17 * k],
+          [-14, -25 - 12 * k], [-15, -25 - 7 * k], [-8, -24 - 3 * k], [-6, -23]];
+        shape(ctx, fill, () => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); }, 1.8);
+      };
+      wing('#777777', f * 0.6 - 0.15);
+      const tl = c.tailLen;
+      shape(ctx, c.tail, () => { ctx.beginPath(); ctx.moveTo(-12, -25); ctx.lineTo(-14 - tl, -25 - tl * 0.08); ctx.lineTo(-14 - tl, -21); ctx.lineTo(-12, -20); ctx.closePath(); }, 1.6);
+      shape(ctx, c.body, () => ell(ctx, 0, -22, 16, 6.5));
+      if (c.throat) { ctx.fillStyle = WHITE; ell(ctx, 13, -21, 4, 3.5); ctx.fill(); }
+      strokeLine(ctx, [2, -16, 4, -10, 7, -9], 1.6, '#999');
+      shape(ctx, c.head, () => ell(ctx, 17, -25, c.owl ? 7.5 : 6.5, c.owl ? 7 : 5.5));
+      if (c.owl) [-1, 1].forEach(s => shape(ctx, c.head, () => { ctx.beginPath(); ctx.moveTo(15 + s * 2, -30); ctx.lineTo(14 + s * 3, -36); ctx.lineTo(18 + s * 2, -31); ctx.closePath(); }, 1.2));
+      birdEye(ctx, c, 19.5, -26.5);
+      birdBeak(ctx, c, 23, -25, 0.9);
+      wing(c.wing, f);
+      ctx.restore(); ctx.restore();
+      return;
+    }
+    // perched
+    [-3, 4].forEach(x => { strokeLine(ctx, [x, -14, x, -2], 2.6, '#9a9a9a'); strokeLine(ctx, [x - 2, -1, x + 4, -1], 1.6, INK, false); });
+    const tl = c.tailLen;
+    shape(ctx, c.tail, () => { ctx.beginPath(); ctx.moveTo(-5, -22); ctx.lineTo(-8 - tl * 0.6, -18 + tl * 0.55); ctx.lineTo(-4 - tl * 0.6, -16 + tl * 0.6); ctx.lineTo(1, -16); ctx.closePath(); }, 1.6);
+    const body = () => ell(ctx, 0, -28, c.owl ? 12 : 11, 17, c.owl ? -0.1 : -0.3);
+    shape(ctx, c.body, body);
+    clipTo(ctx, body, () => {
+      if (c.throat) { ctx.fillStyle = WHITE; ell(ctx, 9, -38, 6, 7); ctx.fill(); }
+      if (c.owl) { ctx.strokeStyle = '#555'; ctx.lineWidth = 1; for (let y = -38; y < -14; y += 4) { ctx.beginPath(); ctx.moveTo(2, y); ctx.lineTo(12, y + 1); ctx.stroke(); } }
+      ctx.fillStyle = c.wing; ell(ctx, -3, -27, 8, 14, c.owl ? -0.1 : -0.35); ctx.fill();
+      ctx.strokeStyle = '#888'; ctx.lineWidth = 1; [-22, -18, -14].forEach(y => { ctx.beginPath(); ctx.moveTo(-9, y); ctx.lineTo(0, y + 3); ctx.stroke(); });
+    });
+    ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+    if (c.owl) {
+      shape(ctx, c.head, () => ell(ctx, 3, -46, 10, 9));
+      [-1, 1].forEach(s => shape(ctx, c.head, () => { ctx.beginPath(); ctx.moveTo(3 + s * 4, -53); ctx.lineTo(3 + s * 7, -61); ctx.lineTo(3 + s * 8.5, -51); ctx.closePath(); }, 1.4));
+      shape(ctx, '#cfcfcf', () => ell(ctx, 7, -46, 6, 6.5), 1.2);
+      birdEye(ctx, c, 8, -47.5);
+      birdBeak(ctx, c, 11.5, -44.5);
+    } else {
+      shape(ctx, c.head, () => ell(ctx, 5, -46, 8, 7));
+      birdEye(ctx, c, 7.5, -47.5);
+      birdBeak(ctx, c, 12, -46, c.beak === 'toucan' ? 0.9 : 1);
+    }
+    ctx.restore();
+  }
+  function birdFB(ctx, ph, m, baby, view, id) {
+    const c = BIRD[id], F = view === 'front';
+    ctx.save(); ctx.scale(c.k, c.k);
+    if (baby) {
+      const hop = Math.abs(Math.sin(ph * 1.5)) * 4 * m;
+      [-3, 3].forEach(x => strokeLine(ctx, [x, -9 - hop, x, -1 - hop], 2.4, '#888'));
+      ctx.save(); ctx.translate(0, -hop);
+      shape(ctx, c.chick, () => fuzz(ctx, 0, -20, 12, 13, 16));
+      shape(ctx, c.chick, () => fuzz(ctx, 0, -37, c.owl ? 10 : 9, c.owl ? 9 : 8.5, 14), 2);
+      if (F) {
+        [-1, 1].forEach(s => birdEye(ctx, c, s * 3.5, -39));
+        shape(ctx, c.beak === 'small' ? '#333' : c.beakFill, () => { ctx.beginPath(); ctx.moveTo(-2, -36); ctx.lineTo(2, -36); ctx.lineTo(0, -31.5); ctx.closePath(); }, 1);
+      }
+      ctx.restore(); ctx.restore();
+      return;
+    }
+    if (m) {
+      const lift = 18 + Math.sin(ph * 0.5) * 2, f = Math.sin(ph * 1.6);
+      ell(ctx, 0, 0, 16, 3); ctx.fillStyle = 'rgba(0,0,0,0.13)'; ctx.fill();
+      ctx.save(); ctx.translate(0, -lift);
+      [-1, 1].forEach(s => shape(ctx, c.wing, () => { ctx.beginPath(); ctx.moveTo(s * 4, -26); ctx.lineTo(s * 16, -30 - 9 * f); ctx.lineTo(s * 32, -24 - 16 * f);
+        ctx.lineTo(s * 30, -20 - 14 * f); ctx.lineTo(s * 26, -21 - 12 * f); ctx.lineTo(s * 15, -22 - 6 * f); ctx.lineTo(s * 4, -20); ctx.closePath(); }, 1.8));
+      if (!F) shape(ctx, c.tail, () => { ctx.beginPath(); ctx.moveTo(-4, -17); ctx.lineTo(4, -17); ctx.lineTo(4 + c.tailLen * 0.1, -16 + c.tailLen * 0.4); ctx.lineTo(-4 - c.tailLen * 0.1, -16 + c.tailLen * 0.4); ctx.closePath(); }, 1.6);
+      shape(ctx, c.body, () => ell(ctx, 0, -23, 6, 8));
+      shape(ctx, c.head, () => ell(ctx, 0, -33, c.owl ? 7 : 5.5, c.owl ? 6.5 : 5));
+      if (F) {
+        [-1, 1].forEach(s => birdEye(ctx, c, s * (c.owl ? 3 : 2.5), -34));
+        if (c.beak === 'toucan') shape(ctx, c.beakFill, () => ell(ctx, 0, -27, 3, 6), 1.3);
+        else shape(ctx, c.beakFill, () => { ctx.beginPath(); ctx.moveTo(-1.6, -31.5); ctx.lineTo(1.6, -31.5); ctx.lineTo(0, -27.5); ctx.closePath(); }, 1);
+      }
+      ctx.restore(); ctx.restore();
+      return;
+    }
+    [-3, 3].forEach(x => { strokeLine(ctx, [x, -14, x, -2], 2.6, '#9a9a9a'); strokeLine(ctx, [x - 2.5, -1, x + 2.5, -1], 1.6, INK, false); });
+    if (!F) shape(ctx, c.tail, () => { ctx.beginPath(); ctx.moveTo(-5, -16); ctx.lineTo(5, -16); ctx.lineTo(4 + c.tailLen * 0.08, -16 + c.tailLen * 0.55); ctx.lineTo(-4 - c.tailLen * 0.08, -16 + c.tailLen * 0.55); ctx.closePath(); }, 1.8);
+    [-1, 1].forEach(s => shape(ctx, c.wing, () => ell(ctx, s * 9.5, -26, 4.5, 13, s * 0.12)));
+    const body = () => ell(ctx, 0, -28, c.owl ? 12.5 : 11, 17);
+    shape(ctx, F ? c.body : c.wing, body);
+    if (F) clipTo(ctx, body, () => {
+      if (c.throat) { ctx.fillStyle = WHITE; ell(ctx, 0, -38, 8, 7); ctx.fill(); }
+      if (c.owl) { ctx.strokeStyle = '#555'; ctx.lineWidth = 1; for (let y = -38; y < -14; y += 4) { ctx.beginPath(); ctx.moveTo(-8, y); ctx.lineTo(8, y); ctx.stroke(); } }
+    });
+    ctx.lineWidth = OUT; ctx.strokeStyle = INK; body(); ctx.stroke();
+    const hr = c.owl ? 10 : 7.5;
+    if (c.owl) [-1, 1].forEach(s => shape(ctx, c.head, () => { ctx.beginPath(); ctx.moveTo(s * 4, -53); ctx.lineTo(s * 8, -61); ctx.lineTo(s * 9, -50); ctx.closePath(); }, 1.4));
+    shape(ctx, c.head, () => ell(ctx, 0, -46, hr, hr * 0.92));
+    if (F) {
+      if (c.owl) [-1, 1].forEach(s => shape(ctx, '#cfcfcf', () => ell(ctx, s * 4.5, -46, 4.5, 5), 1));
+      [-1, 1].forEach(s => birdEye(ctx, c, s * (c.owl ? 4.5 : 3), -47));
+      if (c.beak === 'toucan') { shape(ctx, c.beakFill, () => ell(ctx, 0, -38, 4, 8), 1.4); shape(ctx, INK, () => ell(ctx, 0, -32, 2.6, 2.4), 1); }
+      else shape(ctx, c.beakFill, () => { ctx.beginPath(); ctx.moveTo(-2.2, -44); ctx.lineTo(2.2, -44); ctx.lineTo(0, -38.5); ctx.closePath(); }, 1.1);
+    }
+    ctx.restore();
+  }
+  Object.keys(BIRD).forEach(id => {
+    ART[id] = (ctx, ph, m, baby) => birdSide(ctx, ph, m, baby, id);
+    FB[id] = (ctx, ph, m, baby, view) => birdFB(ctx, ph, m, baby, view, id);
+  });
 
   function draw(ctx, id, x, y, opts = {}) {
     const { phase = 0, moving = true, scale = 1, facing = 1, baby = false, view = 'side' } = opts;

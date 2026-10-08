@@ -41,7 +41,7 @@
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     card.appendChild(cv);
     const info = document.createElement('div'); info.className = 'info';
-    info.innerHTML = `<div class="name">${s.name}</div>
+    info.innerHTML = `<div class="name">${s.name}${id === 'seahawk' ? ' (osprey)' : ''}${s.secret ? ' <span class="status">SECRET</span>' : ''}</div>
       <div class="wants">Wants: ${s.wants.join(', ')}</div>
       <div class="row">Adult, side ${badge(a.adult)}</div><div class="row">Baby, side ${badge(a.baby)}</div>
       <div class="row">Adult, front/back ${badge(a.adultFrontBack)}</div><div class="row">Baby, front/back ${badge(a.babyFrontBack)}</div>`;
