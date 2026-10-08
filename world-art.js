@@ -8,6 +8,15 @@
   function line(c, x1, y1, x2, y2, w, col = INK) {
     c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.lineWidth = w; c.strokeStyle = col; c.lineCap = 'round'; c.stroke();
   }
+  // Color fades in as the zoo earns stars. Each layer runs from 0 (black and white) to 1 (full color).
+  const tint = { plants: 0, water: 0, built: 0 };
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  function mix(gray, color, k) {
+    if (k <= 0) return gray; if (k >= 1) return color;
+    const a = rgb(gray), b = rgb(color);
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(',')})`;
+  }
+  const P = (g, col) => mix(g, col, tint.plants), Wt = (g, col) => mix(g, col, tint.water), B = (g, col) => mix(g, col, tint.built);
   // Small deterministic random from a seed, so scenery doesn't flicker.
   function rnd(seed) { const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 
@@ -17,12 +26,12 @@
     tree(c, x, y, seed = 0) {
       Art.shadow(c, x, y, 13);
       c.beginPath(); c.moveTo(x - 3, y); c.lineTo(x - 2, y - 16); c.lineTo(x + 2, y - 16); c.lineTo(x + 3, y); c.closePath();
-      fillStroke(c, '#777');
+      fillStroke(c, P('#777777', '#8a5a32'));
       const blobs = [[-8, -24, 9], [8, -24, 9], [0, -33, 11], [-3, -22, 9], [5, -30, 8]];
       c.lineWidth = 3.2; c.strokeStyle = INK;
       blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.stroke(); });
-      c.fillStyle = WHITE; blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.fill(); });
-      c.strokeStyle = '#999'; c.lineWidth = 1;
+      c.fillStyle = P('#ffffff', '#72bf52'); blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.fill(); });
+      c.strokeStyle = P('#999999', '#3d8a34'); c.lineWidth = 1;
       for (let i = 0; i < 5; i++) {
         const a = rnd(seed + i) * 6.28, rr = 4 + rnd(seed + i + 9) * 9;
         const px = x + Math.cos(a) * rr, py = y - 27 + Math.sin(a) * rr * 0.8;
@@ -35,8 +44,8 @@
       const blobs = [[-6, -5, 6], [6, -5, 6], [0, -9, 7]];
       c.lineWidth = 3.2; c.strokeStyle = INK;
       blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.stroke(); });
-      c.fillStyle = '#e6e6e6'; blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.fill(); });
-      [[-5, -7], [4, -9], [1, -4]].forEach(([dx, dy]) => { ell(c, x + dx, y + dy, 1.1, 1.1); c.fillStyle = '#555'; c.fill(); });
+      c.fillStyle = P('#e6e6e6', '#5aa548'); blobs.forEach(([dx, dy, r]) => { ell(c, x + dx, y + dy, r, r); c.fill(); });
+      [[-5, -7], [4, -9], [1, -4]].forEach(([dx, dy]) => { ell(c, x + dx, y + dy, 1.1, 1.1); c.fillStyle = P('#555555', '#d8433a'); c.fill(); });
     },
 
     // Water is flat on the ground; drawn in the ground pass, sized to its tile.
@@ -47,7 +56,7 @@
         const a = (k / 16) * Math.PI * 2, rr = r * (0.9 + 0.1 * Math.sin(a * 3 + x));
         c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.82);
       }
-      c.closePath(); fillStroke(c, '#b4b4b4', 2);
+      c.closePath(); fillStroke(c, Wt('#b4b4b4', '#4fa3e3'), 2);
       c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.lineCap = 'round';
       [[-7, -4], [3, -5], [-2, 4], [7, 3]].forEach(([dx, dy], i) => {
         const ox = Math.sin(t * 1.2 + i * 1.7) * 1.5, px = x + dx + ox, py = y + dy;
@@ -60,7 +69,7 @@
       const by = y - 6 - lift, spin = lift * 0.6;
       ell(c, x, by, 6, 6); fillStroke(c, WHITE, 1.8);
       c.save(); ell(c, x, by, 6, 6); c.clip(); c.translate(x, by); c.rotate(spin);
-      c.fillStyle = INK; c.beginPath(); c.moveTo(-7, -3); c.quadraticCurveTo(0, 2, 7, -3);
+      c.fillStyle = B('#111111', '#d8433a'); c.beginPath(); c.moveTo(-7, -3); c.quadraticCurveTo(0, 2, 7, -3);
       c.lineTo(7, 0); c.quadraticCurveTo(0, 5, -7, 0); c.closePath(); c.fill();
       c.restore();
       ell(c, x - 2, by - 3, 1.4, 1); c.fillStyle = WHITE; c.fill();
@@ -100,21 +109,21 @@
     giftShop(c, x, y, T) {
       const w = T * 0.84, h = 22;
       Art.shadow(c, x, y, w * 0.55);
-      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, WHITE, 2);
+      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, B('#ffffff', '#fff1d6'), 2);
       // striped awning
       c.beginPath(); c.moveTo(x - w / 2 - 3, y - h); c.lineTo(x + w / 2 + 3, y - h); c.lineTo(x + w / 2 + 1, y - h + 7); c.lineTo(x - w / 2 - 1, y - h + 7); c.closePath();
       fillStroke(c, WHITE, 1.6);
-      c.save(); c.clip(); c.fillStyle = INK;
+      c.save(); c.clip(); c.fillStyle = B('#111111', '#d8433a');
       for (let k = -w / 2 - 3; k < w / 2 + 3; k += 6) c.fillRect(x + k, y - h, 3, 7);
       c.restore();
       c.beginPath(); c.rect(x - w / 2 - 3, y - h, w + 6, 7); c.lineWidth = 1.6; c.strokeStyle = INK; c.stroke();
       // door and window with a tiny bear in it
-      c.beginPath(); c.rect(x - 3.5, y - 10, 7, 10); fillStroke(c, '#999', 1.4);
-      c.beginPath(); c.rect(x + 6, y - 12, 6, 6); fillStroke(c, '#eee', 1.2);
+      c.beginPath(); c.rect(x - 3.5, y - 10, 7, 10); fillStroke(c, B('#999999', '#8a5a32'), 1.4);
+      c.beginPath(); c.rect(x + 6, y - 12, 6, 6); fillStroke(c, B('#eeeeee', '#cfe8f7'), 1.2);
       ell(c, x + 9, y - 8.5, 1.8, 1.8); c.fillStyle = INK; c.fill(); ell(c, x + 9, y - 10.6, 1.3, 1.3); c.fill();
-      c.beginPath(); c.rect(x - 12, y - 12, 6, 6); fillStroke(c, '#eee', 1.2);
+      c.beginPath(); c.rect(x - 12, y - 12, 6, 6); fillStroke(c, B('#eeeeee', '#cfe8f7'), 1.2);
       // sign
-      c.beginPath(); c.rect(x - 13, y - h - 10, 26, 9); fillStroke(c, INK, 1);
+      c.beginPath(); c.rect(x - 13, y - h - 10, 26, 9); fillStroke(c, B('#111111', '#b8322b'), 1);
       c.fillStyle = WHITE; c.font = 'bold 7px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText('GIFTS', x, y - h - 5.3);
     },
@@ -123,16 +132,16 @@
     eduCenter(c, x, y, T) {
       const w = T * 0.86, h = 18;
       Art.shadow(c, x, y, w * 0.55);
-      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, WHITE, 2);
+      c.beginPath(); c.rect(x - w / 2, y - h, w, h); fillStroke(c, B('#ffffff', '#f7f0e0'), 2);
       // columns
-      [-9, -3, 3, 9].forEach(dx => line(c, x + dx, y - h + 3, x + dx, y - 2, 1.6, '#777'));
+      [-9, -3, 3, 9].forEach(dx => line(c, x + dx, y - h + 3, x + dx, y - 2, 1.6, B('#777777', '#b9a07a')));
       c.beginPath(); c.moveTo(x - w / 2 - 3, y - h); c.lineTo(x, y - h - 12); c.lineTo(x + w / 2 + 3, y - h); c.closePath();
-      fillStroke(c, '#ccc', 1.8);
+      fillStroke(c, B('#cccccc', '#4a7cc0'), 1.8);
       // open book in the gable
       c.beginPath(); c.moveTo(x, y - h - 2); c.lineTo(x - 5, y - h - 4); c.lineTo(x - 5, y - h - 8); c.lineTo(x, y - h - 6); c.closePath(); fillStroke(c, WHITE, 1);
       c.beginPath(); c.moveTo(x, y - h - 2); c.lineTo(x + 5, y - h - 4); c.lineTo(x + 5, y - h - 8); c.lineTo(x, y - h - 6); c.closePath(); fillStroke(c, WHITE, 1);
-      c.beginPath(); c.rect(x - 4, y - 9, 8, 9); fillStroke(c, '#999', 1.4);
-      c.beginPath(); c.rect(x - 15, y - h - 24, 30, 9); fillStroke(c, INK, 1);
+      c.beginPath(); c.rect(x - 4, y - 9, 8, 9); fillStroke(c, B('#999999', '#8a5a32'), 1.4);
+      c.beginPath(); c.rect(x - 15, y - h - 24, 30, 9); fillStroke(c, B('#111111', '#3b7a3a'), 1);
       c.fillStyle = WHITE; c.font = 'bold 7px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText('LEARN', x, y - h - 19.3);
       line(c, x, y - h - 15, x, y - h - 12, 1.2, INK);
@@ -157,10 +166,10 @@
     entrance(c, x, y, T) {
       const w = T * 1.6;
       [-1, 1].forEach(s => {
-        c.beginPath(); c.rect(x + s * w / 2 - 4, y - 34, 8, 34); fillStroke(c, WHITE, 2);
-        c.beginPath(); c.rect(x + s * w / 2 - 5.5, y - 38, 11, 5); fillStroke(c, INK, 1);
+        c.beginPath(); c.rect(x + s * w / 2 - 4, y - 34, 8, 34); fillStroke(c, B('#ffffff', '#eedfc2'), 2);
+        c.beginPath(); c.rect(x + s * w / 2 - 5.5, y - 38, 11, 5); fillStroke(c, B('#111111', '#7a4a2a'), 1);
       });
-      c.beginPath(); c.rect(x - w / 2 - 6, y - 50, w + 12, 13); fillStroke(c, INK, 2);
+      c.beginPath(); c.rect(x - w / 2 - 6, y - 50, w + 12, 13); fillStroke(c, B('#111111', '#2f7a3a'), 2);
       c.fillStyle = WHITE; c.font = 'bold 9px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText('3D ZOO', x, y - 43.2);
     },
@@ -253,7 +262,7 @@
         ? { shirt: '#555', hat: 'cap', role: 'janitor' }
         : { shirt: '#eee', hat: 'safari', role: 'keeper' };
     },
-    rnd,
+    rnd, tint, mix,
   };
 
   global.ZooArt = Art;

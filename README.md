@@ -6,6 +6,14 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 
 ## How it plays
 
+- **Zoo stars** (click the stars at the top): you start with 1 star, $15,000, and the four starter animals (zebra, penguin, flamingo, monkey). Each new star needs a few goals met at once (rating, guests in one day, number of species, babies born) and unlocks more:
+  - 2 stars: giraffe, bear, gift shop. Grass, trees, and bushes turn green.
+  - 3 stars: lion, snow leopard, education center. Water turns blue.
+  - 4 stars: elephant. Paths, fences, and buildings get their colors.
+  - 5 stars: animals in color (art still to come).
+  Earned stars are never lost. Older saves work out their star level when loaded and keep everything already built.
+- **Bottom bar**: three tabs. Build (paths, fences, exhibit items, buildings, remove), Animals, and Staff.
+- **Guests** stop at the fence to watch the animals, and linger at their favorites, babies, and happy animals.
 - **Paths** connect everything to the entrance. Guests only walk on paths.
 - **Fences** make exhibits. An exhibit is grass that's fully closed in by fence, with a path running right beside it so keepers can get in.
 - **Items**: tree, bush, water, and toy. Each species wants a few of these in its exhibit.

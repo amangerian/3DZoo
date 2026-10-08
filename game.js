@@ -47,6 +47,23 @@
   const GROW_DAYS = 4;
   const SELL_ADULT = 0.15, SELL_BABY = 0.1;          // selling returns only a small fraction
   const MAX_GUESTS = 160;
+  // Zoo stars. Each level needs every goal met at once (guests = best single day). Earned stars are never lost.
+  const STARS = [null,
+    { need: [], animals: ['zebra', 'penguin', 'flamingo', 'monkey'], tools: ['path', 'fence', 'tree', 'bush', 'water', 'toy', 'remove'] },
+    { need: [['rating', 65], ['guests', 65]], animals: ['giraffe', 'bear'], tools: ['gift'], color: 'Grass, trees, and bushes turn green' },
+    { need: [['rating', 75], ['species', 4], ['births', 1]], animals: ['lion', 'snowleopard'], tools: ['edu'], color: 'Water turns blue' },
+    { need: [['rating', 85], ['species', 5], ['guests', 115]], animals: ['elephant'], tools: [], color: 'Paths, fences, and buildings get their colors' },
+    { need: [['rating', 90], ['species', 8], ['guests', 135]], animals: [], tools: [], color: 'Animals in color (art still to come)' },
+  ];
+  const MAX_STARS = STARS.length - 1;
+  const GOAL = {
+    rating: { label: n => `Rating ${n}`, have: () => Math.round(S.rep) },
+    guests: { label: n => `${n} guests in one day`, have: () => Math.max(S.today.guests, ...S.history.map(h => h.guests || 0)) },
+    species: { label: n => `${n} different species`, have: () => new Set(S.animals.map(a => a.sp)).size },
+    births: { label: n => n > 1 ? `${n} babies born` : 'A baby born', have: () => S.totals.births || 0 },
+  };
+  // Which color layers are on at each star level.
+  const COLOR_AT = { plants: 2, water: 3, built: 4 };
   const SAVE_KEY = '3dzoo-save-v1';
   const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e' };
   const CHAR_ITEM = { t: 'tree', b: 'bush', w: 'water', y: 'toy', g: 'gift', e: 'edu' };
@@ -91,7 +108,7 @@
     const tiles = new Array(MW * MH).fill(GRASS);
     for (let y = MH - 1; y >= MH - 6; y--) tiles[idx(ENT.x, y)] = PATH;
     return {
-      v: 1, money: 25000, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
+      v: 1, money: 15000, stars: 1, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
       tiles, items: new Array(MW * MH).fill(null), animals: [], staff: [],
       litter: {}, poop: {}, food: {}, nextId: 1, log: [], arrivalAcc: 0,
       today: newToday(), totals: { guests: 0, births: 0 }, history: [], comments: {}, plushSales: {},
@@ -419,6 +436,43 @@
     }
   }
 
+  // Guests stop at the fence to watch. Longer for animals they like, babies, and happy animals;
+  // a quick look if the animals seem unhappy. Exhibits they've already watched get the odd second look.
+  function maybeWatch(g, i) {
+    g.watched = g.watched || new Set();
+    for (const eid of (viewOf[i] || [])) {
+      const list = S.animals.filter(a => a.ex === eid);
+      if (!list.length) continue;
+      const again = g.watched.has(eid);
+      if (again && Math.random() > 0.25) continue;
+      g.watched.add(eid);
+      // face the nearest animal (or the nearest bit of the exhibit if they're all far off)
+      let tgt = null, bd = Infinity;
+      list.forEach(a => { const d = Math.hypot(a.x - g.x, a.y - g.y); if (d < bd) { bd = d; tgt = a; } });
+      if (bd > T * 4) EX[eid].tiles.forEach(j => { const c = center(j), d = Math.hypot(c.x - g.x, c.y - g.y); if (d < bd) { bd = d; tgt = c; } });
+      const dx = tgt.x - g.x, dy = tgt.y - g.y;
+      if (Math.abs(dy) > Math.abs(dx)) g.view = dy < 0 ? 'back' : 'front';
+      else { g.view = 'side'; g.facing = dx > 0 ? 1 : -1; }
+      // step up to the fence side of the path and spread out a little so a crowd lines the rail
+      const c = center(i), side = (Math.random() - 0.5) * 16;
+      if (g.view === 'side') { g.x = c.x + g.facing * 8; g.y = c.y + side * 0.6; }
+      else { g.y = c.y + (g.view === 'back' ? -8 : 8); g.x = c.x + side; }
+      const sp = list.reduce((b, a) => Z.SPECIES[a.sp].appeal > Z.SPECIES[b.sp].appeal ? a : b).sp;
+      const avg = list.reduce((s2, a) => s2 + a.happy, 0) / list.length;
+      let t = 2 + Math.random() * 2;
+      if (sp === g.fav) t += 2;
+      if (list.some(a => a.baby)) t += 1.5;
+      if (avg < 40) t = 1 + Math.random();
+      if (again) t *= 0.5;
+      g.watch = { t: Math.min(8, t), ex: eid, sp };
+      g.path = []; g.moving = false;
+      return true;
+    }
+    // now and then just stop to take it all in
+    if (Math.random() < 0.05) { g.watch = { t: 1 + Math.random() * 1.5, ex: -1 }; g.moving = false; return true; }
+    return false;
+  }
+
   function guestComments(g) {
     const out = [];
     if (g.fav) out.push(`Loved the ${plural(g.fav)}!`);
@@ -433,6 +487,12 @@
 
   function updateGuest(g, dt) {
     if (g.inside) { g.inside.t -= dt; if (g.inside.t <= 0) leaveBuilding(g); return; }
+    if (g.watch) {
+      // standing still at the rail; watching uses up part of their visit like walking does
+      g.watch.t -= dt; g.stay -= dt; g.moving = false;
+      if (g.watch.t <= 0 || g.leaving) g.watch = null;
+      return;
+    }
     g.stay -= dt;
     if (!g.leaving && (g.stay <= 0 || g.happy < 15)) { g.leaving = true; }
     g.litterT -= dt;
@@ -455,6 +515,7 @@
         if (S.litter[i]) { g.happy = clamp(g.happy - 0.7 * S.litter[i], 0, 100); g.litterSeen += S.litter[i]; }
         g.visits.set(i, (g.visits.get(i) || 0) + 1);
         if (maybeVisit(g, i)) return;
+        if (maybeWatch(g, i)) return;
         const opts = neighbors(i).filter(n => S.tiles[n] === PATH);
         if (!opts.length) { g.leaving = true; return; }
         let best = Infinity, picks = [];
@@ -633,6 +694,7 @@
       return !g.gone;
     });
     S.staff.forEach(s => (s.type === 'janitor' ? updateJanitor(s, dt) : updateKeeper(s, dt, st)));
+    checkStars(false);
     S.time += dt;
     if (S.time >= DAY) endOfDay(st);
   }
@@ -643,6 +705,7 @@
 
   function applyTool(i, first) {
     if (i < 0) return;
+    if (tool === 'animal' ? !speciesOpen(toolSpecies) : !toolOpen(tool)) return first && toastLocked(tool === 'animal' ? toolSpecies : tool);
     const t = S.tiles[i], item = S.items[i], isEnt = i === idx(ENT.x, ENT.y);
     if (tool === 'path') {
       if (t === PATH) return;
@@ -715,7 +778,7 @@
   // ---------- saving ----------
   function serialize() {
     return {
-      v: 1, money: S.money, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
+      v: 1, money: S.money, stars: S.stars, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
       tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
       animals: S.animals.map(a => ({ id: a.id, sp: a.sp, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
         hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2) })),
@@ -730,6 +793,7 @@
     Object.assign(s, { money: o.money, day: o.day, time: o.time || 0, speed: o.speed ?? 1, ticket: o.ticket ?? 15, rep: o.rep ?? 50,
       litter: o.litter || {}, poop: o.poop || {}, food: o.food || {}, nextId: o.nextId || 1, log: o.log || [], totals: o.totals || s.totals,
       today: Object.assign(newToday(), o.today || {}), history: o.history || [], comments: o.comments || {}, plushSales: o.plushSales || {} });
+    s.stars = o.stars || 0;   // older saves work out their level on load
     s.tiles = o.tiles.split('').map(Number);
     s.items = o.items.split('').map(ch => CHAR_ITEM[ch] || null);
     s.animals = (o.animals || []).filter(a => Z.SPECIES[a.sp]).map(a => Object.assign({ path: [], wait: 1, phase: 0, facing: 1, ex: -1, moving: false }, a));
@@ -746,7 +810,9 @@
     catch (e) { return false; }
   }
   function startWith(state) {
-    S = state; guests = []; selected = null; recompute(); centerView(); renderAll();
+    S = state; guests = []; selected = null; recompute();
+    if (!S.stars) { S.stars = 1; checkStars(true); }
+    snapTint(); centerView(); renderAll();
   }
   function exportSave() {
     const blob = new Blob([JSON.stringify(serialize(), null, 1)], { type: 'application/json' });
@@ -788,10 +854,10 @@
     const x = tx(i) * T, y = ty(i) * T, t = S.tiles[i], h = A.rnd(i);
     const inside = exOf[i] >= 0 || (t === FENCE && neighbors(i).some(n => exOf[n] >= 0) && false);
     if (t === PATH) {
-      ctx.fillStyle = '#dcdcdc'; ctx.fillRect(x, y, T + 0.5, T + 0.5);
-      ctx.fillStyle = '#b5b5b5';
+      ctx.fillStyle = GC.path; ctx.fillRect(x, y, T + 0.5, T + 0.5);
+      ctx.fillStyle = GC.pathSpeck;
       for (let k = 0; k < 3; k++) ctx.fillRect(x + 4 + A.rnd(i + k) * 22, y + 4 + A.rnd(i + k + 7) * 22, 2, 2);
-      ctx.strokeStyle = '#8a8a8a'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.strokeStyle = GC.pathEdge; ctx.lineWidth = 1.5; ctx.beginPath();
       const px = tx(i), py = ty(i);
       const edge = (nx, ny, x1, y1, x2, y2) => { if (!inMap(nx, ny) || S.tiles[idx(nx, ny)] !== PATH) { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); } };
       edge(px, py - 1, x, y + 0.75, x + T, y + 0.75); edge(px, py + 1, x, y + T - 0.75, x + T, y + T - 0.75);
@@ -799,21 +865,21 @@
       ctx.stroke();
       return;
     }
-    if (inside) { ctx.fillStyle = '#f1f1f1'; ctx.fillRect(x, y, T + 0.5, T + 0.5); }
+    if (inside) { ctx.fillStyle = GC.exhibit; ctx.fillRect(x, y, T + 0.5, T + 0.5); }
     if (t === FENCE) {
       // shade the half of a fence tile that faces into an exhibit
       const px = tx(i), py = ty(i), inEx = (dx, dy) => inMap(px + dx, py + dy) && exOf[idx(px + dx, py + dy)] >= 0;
       const isF = (dx, dy) => inMap(px + dx, py + dy) && S.tiles[idx(px + dx, py + dy)] === FENCE;
-      ctx.fillStyle = '#f1f1f1';
+      ctx.fillStyle = GC.exhibit;
       for (const qx of [-1, 1]) for (const qy of [-1, 1]) {
         if (inEx(qx, 0) || inEx(0, qy) || (inEx(qx, qy) && isF(qx, 0) && isF(0, qy)))
           ctx.fillRect(x + (qx > 0 ? T / 2 : 0), y + (qy > 0 ? T / 2 : 0), T / 2, T / 2);
       }
       return;
     }
-    if (inside) { ctx.fillStyle = '#c8c8c8'; for (let k = 0; k < 4; k++) ctx.fillRect(x + A.rnd(i * 3 + k) * 30, y + A.rnd(i * 5 + k) * 30, 1.5, 1.5); }
+    if (inside) { ctx.fillStyle = GC.exhibitSpeck; for (let k = 0; k < 4; k++) ctx.fillRect(x + A.rnd(i * 3 + k) * 30, y + A.rnd(i * 5 + k) * 30, 1.5, 1.5); }
     else if (h < 0.35) {
-      ctx.strokeStyle = '#c4c4c4'; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.strokeStyle = GC.tuft; ctx.lineWidth = 1; ctx.beginPath();
       const gx = x + 6 + A.rnd(i + 2) * 18, gy = y + 8 + A.rnd(i + 4) * 18;
       ctx.moveTo(gx - 3, gy); ctx.lineTo(gx - 1, gy - 4); ctx.moveTo(gx, gy); ctx.lineTo(gx + 1, gy - 5); ctx.moveTo(gx + 3, gy); ctx.lineTo(gx + 3, gy - 3); ctx.stroke();
     }
@@ -825,21 +891,40 @@
     ctx.lineCap = 'butt';
     conn.forEach(([dx, dy]) => {
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + dx * T / 2, cy + dy * T / 2);
-      ctx.lineWidth = 6; ctx.strokeStyle = '#111'; ctx.stroke();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.lineWidth = 6; ctx.strokeStyle = GC.fenceDark; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = GC.fenceLight; ctx.stroke();
     });
-    ctx.fillStyle = '#111'; ctx.fillRect(cx - 4, cy - 4, 8, 8);
-    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+    ctx.fillStyle = GC.fenceDark; ctx.fillRect(cx - 4, cy - 4, 8, 8);
+    ctx.fillStyle = GC.fenceLight; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
   }
 
+  // ground colors for this frame, blended by how far each color layer has faded in
+  const GC = {};
+  function groundColors() {
+    const p = (g, c) => A.mix(g, c, A.tint.plants), b = (g, c) => A.mix(g, c, A.tint.built);
+    GC.grass = () => p('#ffffff', '#cfe9b4'); GC.exhibit = p('#f1f1f1', '#b4dc93');
+    GC.exhibitSpeck = p('#c8c8c8', '#86bd63'); GC.tuft = p('#c4c4c4', '#6fae4e');
+    GC.path = b('#dcdcdc', '#e6d6b5'); GC.pathSpeck = b('#b5b5b5', '#c7b088'); GC.pathEdge = b('#8a8a8a', '#a88b5e');
+    GC.fenceDark = b('#111111', '#4a2e17'); GC.fenceLight = b('#ffffff', '#cf9a5c');
+  }
+  // fade color layers toward what the current star level allows
+  function fadeTint(dt) {
+    Object.entries(COLOR_AT).forEach(([k, lvl]) => {
+      const target = S.stars >= lvl ? 1 : 0, cur = A.tint[k];
+      if (cur !== target) A.tint[k] = cur < target ? Math.min(target, cur + dt / 3) : Math.max(target, cur - dt / 3);
+    });
+  }
+  function snapTint() { Object.entries(COLOR_AT).forEach(([k, lvl]) => { A.tint[k] = S.stars >= lvl ? 1 : 0; }); }
+
   function render() {
+    groundColors();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#e9e9e9'; ctx.fillRect(0, 0, W, H);
     ctx.setTransform(dpr * view.zoom, 0, 0, dpr * view.zoom, -view.x * view.zoom * dpr, -view.y * view.zoom * dpr);
     const x0 = clamp(Math.floor(view.x / T), 0, MW - 1), y0 = clamp(Math.floor(view.y / T), 0, MH - 1);
     const x1 = clamp(Math.ceil((view.x + W / view.zoom) / T), 0, MW - 1), y1 = clamp(Math.ceil((view.y + H / view.zoom) / T), 0, MH - 1);
     // ground (one white sheet first, so tiles don't show seams)
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, MW * T, MH * T);
+    ctx.fillStyle = GC.grass(); ctx.fillRect(0, 0, MW * T, MH * T);
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) drawTile(idx(x, y));
     ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, MW * T, MH * T);
     if (tool !== 'look') {
@@ -1028,14 +1113,74 @@
 
   // ---------- HUD & panels ----------
   const $ = id => document.getElementById(id);
+  const $$ = pane => document.querySelector(`#tray .pane[data-pane="${pane}"]`);
   let panelMode = null;
 
   function setTool(t, sp) {
     tool = t; toolSpecies = sp || null;
-    document.querySelectorAll('#tools button[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
-    if (t === 'animal') openPanel('shop');
-    else if (panelMode === 'shop') openPanel(null);
+    document.querySelectorAll('#tools button[data-tool]').forEach(b =>
+      b.classList.toggle('on', b.dataset.tool === t && (!b.dataset.sp || b.dataset.sp === toolSpecies)));
     if (t !== 'look') selected = null;
+  }
+
+  // ---------- zoo stars ----------
+  const starOf = (kind, id) => { for (let n = 1; n <= MAX_STARS; n++) if (STARS[n][kind].includes(id)) return n; return 1; };
+  const toolOpen = t => !['path', 'fence', 'tree', 'bush', 'water', 'toy', 'remove', 'gift', 'edu'].includes(t) || S.stars >= starOf('tools', t);
+  const speciesOpen = sp => !!sp && S.stars >= starOf('animals', sp);
+  const goalMet = ([k, n]) => GOAL[k].have() >= n;
+  const starText = n => '★'.repeat(n) + '☆'.repeat(MAX_STARS - n);
+  function unlockName(id) { return Z.SPECIES[id] ? Z.SPECIES[id].name.toLowerCase() : BUILDINGS[id] ? BUILDINGS[id].name.toLowerCase() : id; }
+  function toastLocked(id) {
+    const n = Z.SPECIES[id] ? starOf('animals', id) : starOf('tools', id);
+    toast(`${unlockName(id)[0].toUpperCase() + unlockName(id).slice(1)} unlocks at ${n} stars. Click the stars at the top to see how.`);
+  }
+  function checkStars(quiet) {
+    while (S.stars < MAX_STARS && STARS[S.stars + 1].need.every(goalMet)) {
+      S.stars++;
+      if (quiet) continue;
+      const L = STARS[S.stars], news = [...L.animals, ...L.tools].map(unlockName);
+      const msg = `The zoo earned ${S.stars} stars!` + (news.length ? ` New: ${news.join(', ')}.` : '') + (L.color ? ` ${L.color}.` : '');
+      log(msg); toast(msg);
+      renderHud(); renderTray(); if (panelMode === 'stars') renderPanel();
+    }
+  }
+
+  // ---------- bottom bar tabs: Build / Animals / Staff ----------
+  let tab = 'build';
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    document.querySelectorAll('#tray .pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
+    // a tool from another tab shouldn't stay armed
+    const armed = document.querySelector(`#tray .pane[data-pane="${t}"] button[data-tool="${tool}"]`);
+    if (tool !== 'look' && !armed) setTool('look');
+    renderTray();
+  }
+  function buildTray() {
+    const order = [...Z.ids].sort((x, y) => starOf('animals', x) - starOf('animals', y) || Z.SPECIES[x].cost - Z.SPECIES[y].cost);
+    $$('animals').innerHTML = order.map(id => {
+      const d = Z.SPECIES[id], ok = approved(id, false);
+      return `<button class="critter" data-tool="animal" data-sp="${id}" ${ok ? '' : 'disabled'}
+        title="${d.name}: wants ${d.wants.join(', ')}${ok ? '' : ' (awaiting approval)'}">
+        <canvas width="76" height="38" data-prev="${id}"></canvas>${d.name}<small>${ok ? money(d.cost) : 'awaiting approval'}</small></button>`;
+    }).join('');
+    $$('staff').innerHTML = Object.entries(STAFF).map(([t, d]) =>
+      `<button class="hire" data-hire="${t}" title="${d.job}">Hire ${d.name.toLowerCase()}<small>${money(d.hire)}, then ${money(d.wage)}/day</small><small data-count="${t}"></small></button>`).join('') +
+      `<span class="sep"></span><button id="b-staff">Staff list<small>who's working</small></button>`;
+  }
+  function renderTray() {
+    document.querySelectorAll('#tray button[data-tool]').forEach(b => {
+      const id = b.dataset.sp || b.dataset.tool, locked = b.dataset.sp ? !speciesOpen(id) : !toolOpen(id);
+      if (b.classList.contains('locked') === locked && b.dataset.ready) return;
+      b.dataset.ready = 1; b.classList.toggle('locked', locked);
+      let tag = b.querySelector('.lock');
+      if (locked && !tag) { tag = document.createElement('small'); tag.className = 'lock'; b.appendChild(tag); }
+      if (tag) tag.textContent = locked ? `locked: ${b.dataset.sp ? starOf('animals', id) : starOf('tools', id)}★` : '';
+    });
+    document.querySelectorAll('[data-count]').forEach(el => {
+      const n = S.staff.filter(s => s.type === el.dataset.count).length;
+      el.textContent = `${n} on staff`;
+    });
   }
   function setSpeed(n) {
     S.speed = n;
@@ -1049,6 +1194,7 @@
     $('clock').style.width = `${(S.time / DAY) * 100}%`;
     $('guests').textContent = guests.length;
     $('rating').textContent = Math.round(S.rep);
+    $('stars').textContent = starText(S.stars);
     $('ticket').textContent = money(S.ticket);
   }
 
@@ -1067,16 +1213,21 @@
 
   function renderPanel() {
     const el = $('panel-body'); if (!panelMode) { el.innerHTML = ''; return; }
-    if (panelMode === 'shop') {
-      $('panel-title').textContent = 'Animals';
-      el.innerHTML = `<p class="muted">Pick an animal, then click inside a fenced exhibit.</p>` + Z.ids.map(id => {
-        const d = Z.SPECIES[id], ok = approved(id, false), bok = approved(id, true);
-        return `<button class="shop ${toolSpecies === id ? 'on' : ''}" data-sp="${id}" ${ok ? '' : 'disabled'}>
-          <canvas width="120" height="84" data-prev="${id}"></canvas>
-          <span><b>${d.name}</b> ${money(d.cost)}<br><small>Wants: ${d.wants.join(', ')}<br>
-          ${ok ? (bok ? 'Can have babies' : 'Baby art awaiting approval') : 'Awaiting approval'}</small></span></button>`;
+    if (panelMode === 'stars') {
+      $('panel-title').textContent = `Zoo stars: ${S.stars} of ${MAX_STARS}`;
+      const next = STARS[S.stars + 1];
+      const goals = next ? next.need.map(g => {
+        const [k, n] = g, have = GOAL[k].have(), ok = have >= n;
+        return `<div class="row">${ok ? '✓' : '·'} ${GOAL[k].label(n)}</div><div class="row">${bar(100 * Math.min(have, n) / n)} <small>${Math.min(have, n)}/${n}</small></div>`;
+      }).join('') : '';
+      const ladder = STARS.slice(1).map((L, k) => {
+        const n = k + 1, got = S.stars >= n, items = [...L.animals, ...L.tools].map(unlockName);
+        return `<div class="card ${got ? '' : 'dim'}"><b>${starText(n)}</b>${got ? ' <small>earned</small>' : ''}<br>
+          ${L.need.length ? `<small>Needs: ${L.need.map(([key, v]) => GOAL[key].label(v).toLowerCase()).join(', ')}</small><br>` : '<small>Where every zoo starts</small><br>'}
+          ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
       }).join('');
-      el.querySelectorAll('button.shop').forEach(b => b.onclick = () => { setTool('animal', b.dataset.sp); renderPanel(); });
+      el.innerHTML = (next ? `<div class="card"><b>Next star</b><br><small>Meet all of these at the same time.</small>${goals}</div>`
+        : `<div class="card"><b>Five-star zoo!</b><br><small>You've earned every star.</small></div>`) + ladder;
       return;
     }
     if (panelMode === 'staff') {
@@ -1149,12 +1300,15 @@
     if (panelMode === 'help') {
       $('panel-title').textContent = 'How to play';
       el.innerHTML = `<ol class="help">
+        <li>Earn <b>stars</b> by running a good zoo. Each star unlocks new animals and buildings, and brings a little more color to the zoo. Click the stars at the top to see your next goal.</li>
+        <li>The bar at the bottom has three tabs: <b>Build</b> (paths, fences, exhibit items, buildings), <b>Animals</b>, and <b>Staff</b>.</li>
         <li>Draw <b>paths</b> from the entrance so guests can walk around.</li>
         <li>Surround a patch of grass with <b>fences</b> to make an exhibit. It must be fully closed and right beside a path so keepers can get in.</li>
         <li>Add what the animal wants: a <b>tree</b>, <b>bush</b>, <b>water</b>, or <b>toy</b>.</li>
         <li>Buy <b>animals</b> and click them into the exhibit. Give each one enough room.</li>
         <li>Hire <b>keepers</b> to put out food and clean exhibits, and <b>janitors</b> to sweep litter. Food costs money each time a keeper puts it out.</li>
         <li>Animals play with the <b>toy</b> ball, which makes them a little happier.</li>
+        <li>Guests stop at the fence to watch the animals, and linger longer at their favorites, babies, and happy animals.</li>
         <li>Guests pay a ticket at the gate. Happy animals and clean paths bring more guests and a better rating. Click the <b>money</b> or <b>rating</b> at the top for details.</li>
         <li>Build a <b>gift shop</b> next to a path. Guests may buy a stuffed version of their favorite animal.</li>
         <li>Build an <b>education center</b> next to a path. Guests who visit learn a fact and enjoy the exhibits more.</li>
@@ -1197,7 +1351,7 @@
         const g = selected.ref;
         $('panel-title').textContent = 'Guest';
         const mood = g.happy > 70 ? 'Having a great time' : g.happy > 45 ? 'Enjoying the zoo' : g.happy > 25 ? 'A bit bored' : 'Unhappy';
-        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
+        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.watch ? (g.watch.ex >= 0 ? ` Watching the ${plural(g.watch.sp)}.` : ' Taking a breather.') : ''}${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
           ${g.fav ? `Favorite animal: ${Z.SPECIES[g.fav].name.toLowerCase()}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}.` : ''}</small>
           ${g.learned ? `<br><small>Learned: ${FACTS[g.learned]}</small>` : ''}</div>`;
       } else if (selected.kind === 'building') {
@@ -1274,17 +1428,27 @@
   function renderAll() { renderHud(); renderNews(); renderPanel(); setSpeed(S.speed); }
 
   // toolbar wiring
+  buildTray();
   document.querySelectorAll('#tools button[data-tool]').forEach(b => b.onclick = () => {
     const t = b.dataset.tool;
-    if (t === 'animal') { setTool('animal', toolSpecies); return; }
+    if (b.classList.contains('locked')) { toastLocked(b.dataset.sp || t); return; }
+    if (t === 'animal') {
+      const d = Z.SPECIES[b.dataset.sp];
+      setTool('animal', b.dataset.sp);
+      toast(`${d.name}s want: ${d.wants.join(', ')}. Click inside a fenced exhibit.`);
+      return;
+    }
     setTool(t);
   });
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  document.querySelectorAll('#tray [data-hire]').forEach(b => b.onclick = () => { hire(b.dataset.hire); renderTray(); });
   $('b-staff').onclick = () => openPanel(panelMode === 'staff' ? null : 'staff');
   $('s-money').onclick = () => openPanel(panelMode === 'money' ? null : 'money');
   $('s-rating').onclick = () => openPanel(panelMode === 'rating' ? null : 'rating');
+  $('s-stars').onclick = () => openPanel(panelMode === 'stars' ? null : 'stars');
   $('b-menu').onclick = () => openPanel(panelMode === 'menu' ? null : 'menu');
   $('b-help').onclick = () => openPanel(panelMode === 'help' ? null : 'help');
-  $('panel-close').onclick = () => { if (tool === 'animal') setTool('look'); openPanel(null); selected = null; };
+  $('panel-close').onclick = () => { openPanel(null); selected = null; };
   document.querySelectorAll('#speed button').forEach(b => b.onclick = () => setSpeed(+b.dataset.speed));
   $('zoom-in').onclick = () => zoomAt(W / 2, H / 2, 1.25);
   $('zoom-out').onclick = () => zoomAt(W / 2, H / 2, 0.8);
@@ -1293,6 +1457,7 @@
   let last = performance.now(), hudT = 0, saveT = 0;
   function frame(now) {
     let dt = Math.min(0.1, (now - last) / 1000); last = now; clock += dt;
+    fadeTint(dt);
     const pan = 400 * dt / view.zoom;
     if (keys.has('arrowleft') || keys.has('a')) view.x -= pan;
     if (keys.has('arrowright') || keys.has('d')) view.x += pan;
@@ -1304,8 +1469,8 @@
     for (let k = 0; k < steps; k++) tick(dt / steps);
     render();
     hudT += dt; saveT += dt;
-    if (hudT > 0.25) { hudT = 0; renderHud(); if (['info', 'staff', 'money', 'rating'].includes(panelMode)) renderPanelLive(); }
-    if (panelMode === 'shop') drawShopPreviews();
+    if (hudT > 0.25) { hudT = 0; renderHud(); renderTray(); if (['info', 'staff', 'money', 'rating', 'stars'].includes(panelMode)) renderPanelLive(); }
+    if (tab === 'animals') drawShopPreviews();
     if (saveT > 30) { saveT = 0; save(true); }
     requestAnimationFrame(frame);
   }
@@ -1319,10 +1484,13 @@
   function drawShopPreviews() {
     document.querySelectorAll('canvas[data-prev]').forEach(cv => {
       const c = cv.getContext('2d'), id = cv.dataset.prev, ok = approved(id, false);
-      c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
-      c.strokeStyle = '#111'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, 74); c.lineTo(120, 74); c.stroke();
+      const w = cv.width, h = cv.height, k = h / 60, ground = h - 4;
+      c.fillStyle = '#fff'; c.fillRect(0, 0, w, h);
+      c.strokeStyle = '#111'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, ground); c.lineTo(w, ground); c.stroke();
       c.globalAlpha = ok ? 1 : 0.35;
-      Z.draw(c, id, 62, 74, { phase: clock * 5, moving: true, scale: 0.42 * Z.SPECIES[id].galleryScale });
+      // only walk the animal that's currently picked, the rest stand still
+      const moving = tool === 'animal' && toolSpecies === id;
+      Z.draw(c, id, w / 2, ground, { phase: moving ? clock * 5 : 0, moving, scale: 0.42 * k * Z.SPECIES[id].galleryScale });
       c.globalAlpha = 1;
     });
   }
@@ -1336,9 +1504,10 @@
   if (!loadSaved()) S = newState();
   startWith(S);
   if (!S.log.length) log('Welcome to 3D Zoo! Open "How to play" to get started.');
+  setTab('build');
   setTool('look');
   requestAnimationFrame(frame);
 
   // small hook for automated testing
-  window.__zoo = { get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal };
+  window.__zoo = { get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, setTab, checkStars, STARS, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal };
 })();
