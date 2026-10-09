@@ -39,7 +39,7 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Babies**: two happy adults of the same species, with room to spare, may have a baby at the end of a day. Babies grow up in 4 days and draw extra attention from guests.
 - **Selling**: an animal can go to another zoo, but you only get back 15% of its price (10% for a baby).
 
-Controls: drag to move around, scroll or pinch to zoom, space to pause, Esc to go back to the Look tool. Click anything with the Look tool to inspect it.
+Controls: drag (or slide two fingers on a trackpad) to move around; pinch to zoom (with a mouse, hold Ctrl or ⌘ and scroll), or use the + and − buttons; space to pause; Esc to go back to the Look tool. Click anything with the Look tool to inspect it.
 
 ## Animal approval
 
@@ -88,6 +88,12 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.6** (Oct 8, 2026)
+  - Guests visit with a plan instead of wandering. Each arrives hoping to see one animal in particular (popular animals more often), plus a few other exhibits (more in a bigger zoo). They visit them nearest-first, head for the least crowded spot along each fence, pick routes that avoid crowded paths where there's a choice, maybe stop at the gift shop or education center, then walk out. They walk a little faster too.
+  - Guests say whether they got to see the animal they came for.
+  - Saved zoos are re-checked against the current star goals when they load, and will be again whenever the goals change.
+- **v1.5** (Oct 8, 2026)
+  - Trackpad controls: sliding two fingers moves the map like grabbing it, and pinching zooms (including Safari's pinch gestures). With a mouse, hold Ctrl or ⌘ and scroll to zoom.
 - **v1.4** (Oct 8, 2026)
   - Keepers can reach every exhibit: they walk across open grass, get through walls that are two or three fences thick (like doubled-up aviary mesh), get around tank water to land on the far side, and as a last resort cut through a neighboring exhibit. Keepers walking out or catching an escaped animal no longer block others from an exhibit, and food always goes where the animals can reach it.
   - Less crowding: each person walking around the zoo now stands for a pair of visitors, so the paths hold half as many figures. Visitor counts, ticket money, gift-shop sales, and star goals still count every visitor. New arrivals walk into the zoo before stopping to watch, and everyone walks a little faster.

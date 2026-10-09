@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.4';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.6';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5;   // SNOW and TANK are exhibit floors; MESH is aviary fencing
@@ -135,6 +135,8 @@
       test: () => S.stars >= 6 && S.animals.length >= 30 && S.animals.every(a => a.happy >= 88 && !a.loose) && S.rep >= 86 && Object.values(S.litter).reduce((t, n) => t + n, 0) <= 5 },
   };
   const MAX_STARS = STARS.length - 1;
+  // Bump this whenever the star goals change: saved zoos are then re-checked against the new goals when they load.
+  const STAR_RULES = 2;
   const GOAL = {
     rating: { label: n => `Rating ${n}`, have: () => Math.round(S.rep) },
     guests: { label: n => `${n} guests in one day`, have: () => Math.max(S.today.guests, ...S.history.map(h => h.guests || 0)) },
@@ -188,7 +190,7 @@
     const tiles = new Array(MW * MH).fill(GRASS);
     for (let y = MH - 1; y >= MH - 6; y--) tiles[idx(ENT.x, y)] = PATH;
     return {
-      v: 1, money: 15000, stars: 1, secrets: {}, peakGuests: 0, bornBy: {}, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
+      v: 1, starRules: STAR_RULES, money: 15000, stars: 1, secrets: {}, peakGuests: 0, bornBy: {}, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
       tiles, items: new Array(MW * MH).fill(null), animals: [], staff: [],
       litter: {}, poop: {}, food: {}, nextId: 1, log: [], arrivalAcc: 0,
       today: newToday(), totals: { guests: 0, births: 0 }, history: [], comments: {}, plushSales: {},
@@ -251,6 +253,7 @@
           if (S.tiles[j] === PATH && !vs.has(j)) { vs.add(j); (viewOf[j] = viewOf[j] || []).push(E.id); }
         }
       });
+      E.view = [...vs];
       const wall = new Map();                     // fence tile -> steps from the exhibit
       let ring = []; E.tiles.forEach(i => neighbors(i).forEach(n => { if (isFence(S.tiles[n]) && !wall.has(n)) { wall.set(n, 1); ring.push(n); } }));
       for (let d = 2; d <= 3 && ring.length; d++) {
@@ -564,7 +567,7 @@
   // ---------- guests ----------
   // How long a guest stays: a short base visit plus a few seconds for each exhibit worth seeing.
   const exhibitsToSee = () => EX.filter(E => S.animals.some(a => a.ex === E.id && !a.loose)).length;
-  const visitLength = () => DAY * (0.15 + Math.random() * 0.15) + Math.min(24, 2.6 * exhibitsToSee());
+  const visitLength = () => DAY * 1.5;      // a safety net: guests normally leave when they've finished their plan
   // Guests on each path tile right now, refreshed every tick (used to spread the crowd out).
   let occ = new Uint16Array(MW * MH), watchers = new Uint16Array(MW * MH);
   function countGuests() {
@@ -636,48 +639,43 @@
     }
   }
 
-  // Guests stop at the fence to watch. Longer for animals they like, babies, and happy animals;
-  // a quick look if the animals seem unhappy. Exhibits they've already watched get the odd second look.
-  function maybeWatch(g, i) {
+  // Watching an exhibit from path tile i. A planned stop is a proper look; a glance on the way is quick.
+  // Longer for their favorite or the animal they came to see, for babies, and for happy animals; short if the animals look unhappy.
+  function watchAt(g, i, eid, planned) {
     g.watched = g.watched || new Set();
-    if (watchers[i] >= 4) return false;              // the rail here is full; walk on and look from further along
-    for (const eid of (viewOf[i] || [])) {
-      const list = S.animals.filter(a => a.ex === eid);
-      if (!list.length) continue;
-      const again = g.watched.has(eid);
-      if (again && Math.random() > 0.08) continue;
-      g.watched.add(eid);
-      // face the nearest animal (or the nearest bit of the exhibit if they're all far off)
-      let tgt = null, bd = Infinity;
-      list.forEach(a => { const d = Math.hypot(a.x - g.x, a.y - g.y); if (d < bd) { bd = d; tgt = a; } });
-      if (bd > T * 4) EX[eid].tiles.forEach(j => { const c = center(j), d = Math.hypot(c.x - g.x, c.y - g.y); if (d < bd) { bd = d; tgt = c; } });
-      const dx = tgt.x - g.x, dy = tgt.y - g.y;
-      if (Math.abs(dy) > Math.abs(dx)) g.view = dy < 0 ? 'back' : 'front';
-      else { g.view = 'side'; g.facing = dx > 0 ? 1 : -1; }
-      // step up to the fence side of the path and spread out a little so a crowd lines the rail
-      const c = center(i), side = (watchers[i] - 1.5) * 6 + (Math.random() - 0.5) * 3;
-      if (g.view === 'side') { g.x = c.x + g.facing * 9; g.y = c.y + side; }
-      else { g.y = c.y + (g.view === 'back' ? -9 : 9); g.x = c.x + side; }
-      watchers[i]++;
-      const sp = list.reduce((b, a) => Z.SPECIES[a.sp].appeal > Z.SPECIES[b.sp].appeal ? a : b).sp;
-      const avg = list.reduce((s2, a) => s2 + a.happy, 0) / list.length;
-      let t = 1.8 + Math.random() * 1.7;
-      if (sp === g.fav) t += 1.5;
-      if (list.some(a => a.baby)) t += 1;
-      if (avg < 40) t = 1 + Math.random();
-      if (again) t *= 0.5;
-      g.watch = { t: Math.min(6, t), ex: eid, sp, again };
-      g.path = []; g.moving = false;
-      return true;
-    }
-    // now and then just stop to take it all in
-    if (Math.random() < 0.03 && occ[i] < 4) { g.watch = { t: 1 + Math.random() * 1.5, ex: -1 }; g.moving = false; return true; }
-    return false;
+    const list = S.animals.filter(a => a.ex === eid && !a.loose);
+    if (!list.length) return false;
+    const again = g.watched.has(eid);
+    g.watched.add(eid);
+    let tgt = null, bd = Infinity;
+    list.forEach(a => { const d = Math.hypot(a.x - g.x, a.y - g.y); if (d < bd) { bd = d; tgt = a; } });
+    if (bd > T * 4) EX[eid].tiles.forEach(j => { const c = center(j), d = Math.hypot(c.x - g.x, c.y - g.y); if (d < bd) { bd = d; tgt = c; } });
+    const dx = tgt.x - g.x, dy = tgt.y - g.y;
+    if (Math.abs(dy) > Math.abs(dx)) g.view = dy < 0 ? 'back' : 'front';
+    else { g.view = 'side'; g.facing = dx > 0 ? 1 : -1; }
+    // step up to the rail, each in their own spot
+    const c = center(i), side = (watchers[i] - 1.5) * 6 + (Math.random() - 0.5) * 3;
+    if (g.view === 'side') { g.x = c.x + g.facing * 9; g.y = c.y + side; }
+    else { g.y = c.y + (g.view === 'back' ? -9 : 9); g.x = c.x + side; }
+    watchers[i]++;
+    const sp = list.reduce((b, a) => Z.SPECIES[a.sp].appeal > Z.SPECIES[b.sp].appeal ? a : b).sp;
+    const avg = list.reduce((s2, a) => s2 + a.happy, 0) / list.length;
+    let t = planned ? 2 + Math.random() * 1.2 : 1 + Math.random() * 0.6;
+    if (sp === g.fav || list.some(a => a.sp === g.wish)) t += 1.5;
+    if (list.some(a => a.baby)) t += 1;
+    if (avg < 40) t = 1 + Math.random();
+    if (again) t *= 0.5;
+    if (g.wish && !g.gotWish && list.some(a => a.sp === g.wish)) { g.gotWish = true; g.extra += 5; mood(g); }
+    g.watch = { t: Math.min(7, t), ex: eid, sp, again };
+    g.path = []; g.moving = false;
+    return true;
   }
 
   function guestComments(g) {
     const out = [];
     if (g.fav) out.push(`Loved the ${plural(g.fav)}!`);
+    if (g.wish && g.gotWish && g.wish !== g.fav) out.push(`Came to see the ${plural(g.wish)}, and did!`);
+    if (g.wish && !g.gotWish && S.animals.some(a => a.sp === g.wish)) out.push(`Didn't get to see the ${plural(g.wish)}`);
     if (!g.sawAnimals) out.push('Not much to see yet');
     if (g.sawSad) out.push(`The ${plural(g.sawSad)} looked unhappy`);
     if (g.sawDirty) out.push('The exhibits were dirty');
@@ -688,55 +686,128 @@
     out.forEach(c => { S.comments[c] = (S.comments[c] || 0) + 1; });
   }
 
+  // ---------- guest visits ----------
+  // Every guest arrives hoping to see one animal in particular (popular animals are wished for more often), plus a few
+  // other exhibits; the bigger the zoo, the more they plan to see. They visit them nearest-first, so they fan out into the
+  // zoo instead of milling around the gate, and at each exhibit they head for the least crowded spot along its fence.
+  // Then maybe the gift shop or education center, and home.
+  const weightedIndex = ws => { let r = Math.random() * ws.reduce((a, b) => a + b, 0); for (let i = 0; i < ws.length; i++) { r -= ws[i]; if (r <= 0) return i; } return ws.length - 1; };
+  // Guests' routes along the paths: shortest, but a crowded tile counts as longer, so where the zoo has loops
+  // people spread across them instead of all squeezing down the same path.
+  function guestRoute(start, goal) {
+    if (start < 0) return null;
+    if (goal(start)) return [];
+    const dist = new Float64Array(MW * MH).fill(Infinity), prev = new Int32Array(MW * MH).fill(-1);
+    const heap = [[0, start]]; dist[start] = 0;
+    const push = (d, i) => { heap.push([d, i]); let k = heap.length - 1; while (k > 0) { const p2 = (k - 1) >> 1; if (heap[p2][0] <= heap[k][0]) break; [heap[p2], heap[k]] = [heap[k], heap[p2]]; k = p2; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0;
+      for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } }
+      return top; };
+    while (heap.length) {
+      const [d, i] = pop();
+      if (d > dist[i]) continue;
+      if (i !== start && goal(i)) { const out = []; for (let j = i; j !== start; j = prev[j]) out.unshift(j); return out; }
+      for (const n of neighbors(i)) {
+        if (S.tiles[n] !== PATH) continue;
+        const nd = d + 1 + 0.35 * occ[n];
+        if (nd < dist[n]) { dist[n] = nd; prev[n] = i; push(nd, n); }
+      }
+    }
+    return null;
+  }
+  function planVisit(g) {
+    g.plan = []; g.planned = true;
+    const shown = S.animals.filter(a => !a.loose && EX[a.ex] && EX[a.ex].view && EX[a.ex].view.length);
+    if (!shown.length) return;
+    const wish = shown[weightedIndex(shown.map(a => Math.pow(Z.SPECIES[a.sp].appeal, 2)))];
+    g.wish = wish.sp;
+    const ids = [...new Set(shown.map(a => a.ex))];
+    const pull = id => shown.filter(a => a.ex === id).reduce((t, a) => t + Z.SPECIES[a.sp].appeal * (0.5 + a.happy / 200), 0);
+    const want = Math.min(ids.length, 4, 1 + Math.round(ids.length * (0.1 + Math.random() * 0.2)));
+    const chosen = [wish.ex], rest = ids.filter(id => id !== wish.ex);
+    while (chosen.length < want && rest.length) chosen.push(rest.splice(weightedIndex(rest.map(pull)), 1)[0]);
+    g.plan = chosen;
+    g.wantEdu = hasBuilding('edu') && Math.random() < 0.4;
+  }
+  // The next leg: the nearest spot to view any exhibit still on the plan, preferring spots without a crowd at the rail.
+  function nextLeg(g, i) {
+    const want = new Set(g.plan.filter(id => EX[id] && EX[id].view));
+    if (want.size) {
+      const sees = j => (viewOf[j] || []).some(id => want.has(id));
+      const r = guestRoute(i, j => sees(j) && watchers[j] < 3 && occ[j] < 6) || guestRoute(i, sees);
+      if (r) { const end = r.length ? r[r.length - 1] : i; g.target = (viewOf[end] || []).find(id => want.has(id)); g.route = r; return true; }
+      g.plan = [];                                     // can't get to any of them from here
+    }
+    if (g.fav && !g.plush && !g.shopped && hasBuilding('gift') && Math.random() < 0.55) {
+      g.shopped = true;
+      const r = guestRoute(i, j => neighbors(j).some(n => S.items[n] === 'gift'));
+      if (r) { g.target = 'gift'; g.route = r; return true; }
+    }
+    if (g.wantEdu && !g.learned) {
+      g.wantEdu = false;
+      const r = guestRoute(i, j => neighbors(j).some(n => S.items[n] === 'edu'));
+      if (r) { g.target = 'edu'; g.route = r; return true; }
+    }
+    return false;
+  }
+  function enterBuilding(g, i, type) {
+    const n = neighbors(i).find(m => S.items[m] === type); if (n === undefined) return false;
+    g.rolled.add(n);
+    g.inside = { i: n, type, t: type === 'gift' ? 3 + Math.random() * 2 : 4 + Math.random() * 2 };
+    return true;
+  }
+
   function updateGuest(g, dt) {
     if (g.inside) { g.inside.t -= dt; if (g.inside.t <= 0) leaveBuilding(g); return; }
     if (g.watch) {
-      // standing still at the rail; watching uses up part of their visit like walking does
-      g.watch.t -= dt; g.moving = false;
-      g.stay -= dt;
+      g.watch.t -= dt; g.moving = false; g.stay -= dt;
       if (g.watch.t <= 0 || g.leaving) g.watch = null;
       return;
     }
     g.stay -= dt;
-    // seen it all? a little longer to wander, then home
-    if (!g.done && g.seen.size && g.seen.size >= exhibitsToSee()) { g.done = true; g.stay = Math.min(g.stay, 6 + Math.random() * 6); }
-    if (!g.leaving && (g.stay <= 0 || g.happy < 15)) { g.leaving = true; }
+    if (!g.leaving && (g.stay <= 0 || g.happy < 15)) g.leaving = true;
     g.litterT -= dt;
     if (g.litterT <= 0) {
       g.litterT = 30 + Math.random() * 35;
       const i = tileAt(g.x, g.y);
-      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.44) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
+      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.32) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
     }
     if (!g.path.length) {
       const i = tileAt(g.x, g.y);
+      if (!g.planned) planVisit(g);
       if (g.leaving) {
-        // head for the exit one tile at a time, so guests can still stop at the gift shop on the way out
         if (i === idx(ENT.x, ENT.y)) { g.gone = true; return; }
-        if (maybeVisit(g, i)) return;
-        const r = bfs(i, j => S.tiles[j] === PATH, j => j === idx(ENT.x, ENT.y));
-        if (!r) { g.gone = true; return; }
-        const c = center(r[0]); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
+        if (!g.route || !g.route.length || g.target !== 'exit') {
+          const r = guestRoute(i, j => j === idx(ENT.x, ENT.y));
+          if (!r) { g.gone = true; return; }
+          g.route = r; g.target = 'exit';
+        }
       } else {
         guestSees(g, i);
         if (S.litter[i]) { g.litterPen += 0.8 * S.litter[i]; g.litterSeen += S.litter[i]; mood(g); }
-        g.visits.set(i, (g.visits.get(i) || 0) + 1);
-        if (maybeVisit(g, i)) return;
-        g.walked = (g.walked || 0) + 1;
-        if (g.walked > 5 && maybeWatch(g, i)) return;   // new arrivals head into the zoo before stopping, so the gate doesn't jam
-        const opts = neighbors(i).filter(n => S.tiles[n] === PATH);
-        if (!opts.length) { g.leaving = true; return; }
-        let best = Infinity, picks = [];
-        opts.forEach(n => {
-          // head for paths they haven't walked, and toward animals they haven't seen yet
-          const fresh = (viewOf[n] || []).some(e => !(g.watched && g.watched.has(e)) && S.animals.some(a => a.ex === e));
-          const v = (g.visits.get(n) || 0) + Math.random() * 0.8 + (n === g.prev ? 1.5 : 0) - (fresh ? 0.9 : 0) + Math.max(0, occ[n] - 3) * 0.25;
-          if (v < best - 0.01) { best = v; picks = [n]; } else if (Math.abs(v - best) < 0.01) picks.push(n);
-        });
-        g.prev = i;
-        const c = center(picks[0]); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
+        // arrived where they were heading?
+        if (g.target != null && (!g.route || !g.route.length)) {
+          const t = g.target; g.target = null;
+          if (t === 'gift' || t === 'edu') { if (enterBuilding(g, i, t)) return; }
+          else {
+            g.plan = g.plan.filter(id => id !== t);
+            if (watchAt(g, i, t, true)) return;
+          }
+        }
+        // on the way: a quick look at an exhibit they hadn't planned on, if there's room at the rail
+        if (g.route && g.route.length && Math.random() < 0.08 && watchers[i] < 3) {
+          const extra = (viewOf[i] || []).find(id => !g.plan.includes(id) && !(g.watched && g.watched.has(id)));
+          if (extra !== undefined && watchAt(g, i, extra, false)) return;
+        }
+        if (!g.route || !g.route.length) { if (!nextLeg(g, i)) { g.leaving = true; return; } }
       }
+      // take the next step along the route (it may have been cut by building work)
+      let n = g.route.shift();
+      if (n === undefined) return;
+      if (S.tiles[n] !== PATH) { g.route = null; return; }
+      const c = center(n); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
     }
-    const moved = stepAlong(g, (g.leaving ? 48 : 32) * dt);
+    const moved = stepAlong(g, (g.leaving ? 58 : 44) * dt);
     g.phase += moved * 0.45; g.moving = moved > 0;
   }
 
@@ -1165,7 +1236,7 @@
   // ---------- saving ----------
   function serialize() {
     return {
-      v: 1, money: S.money, stars: S.stars, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
+      v: 1, starRules: STAR_RULES, money: S.money, stars: S.stars, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
       tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
       animals: S.animals.map(a => ({ id: a.id, sp: a.sp, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
         hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2), loose: a.loose || undefined, moveTo: a.moveTo ?? undefined })),
@@ -1182,6 +1253,7 @@
       today: Object.assign(newToday(), o.today || {}), history: o.history || [], comments: o.comments || {}, plushSales: o.plushSales || {} });
     s.stars = o.stars || 0;   // older saves work out their level on load
     s.secrets = o.secrets || {}; s.peakGuests = o.peakGuests || 0; s.bornBy = o.bornBy || {};
+    if (o.starRules !== STAR_RULES) { s.stars = 0; s.restarred = true; }    // star goals changed: work the level out again
     s.tiles = o.tiles.split('').map(Number);
     s.items = o.items.split('').map(ch => CHAR_ITEM[ch] || null);
     s.animals = (o.animals || []).filter(a => Z.SPECIES[a.sp]).map(a => Object.assign({ path: [], wait: 1, phase: 0, facing: 1, ex: -1, moving: false }, a));
@@ -1200,6 +1272,7 @@
   function startWith(state) {
     S = state; guests = []; selected = null; recompute();
     if (!S.stars) { S.stars = 1; checkStars(true); }
+    if (S.restarred) { delete S.restarred; log(`The star goals have changed, so your zoo was checked against the new ones. It has ${S.stars} star${S.stars > 1 ? 's' : ''}.`); }
     snapTint(); buildTray(); wireTray(); centerView(); renderAll();
   }
   function exportSave() {
@@ -1536,7 +1609,27 @@
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
   canvas.addEventListener('pointerleave', () => { hover = -1; document.getElementById('tip').style.display = 'none'; });
-  canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
+  // Trackpad: two fingers sliding move the map (like grabbing it); a pinch zooms.
+  // Browsers report a pinch as a scroll with Ctrl held, so Ctrl or Cmd + mouse wheel zooms too.
+  // Safari sends pinches as its own gesture events instead, handled below.
+  let pinching = false, pinchScale = 1;
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? H : 1;           // lines or pages -> pixels
+    if (e.ctrlKey || e.metaKey) {
+      if (pinching) return;
+      zoomAt(e.offsetX, e.offsetY, clamp(Math.exp(-e.deltaY * unit * 0.01), 0.6, 1.6));
+    } else {
+      view.x += e.deltaX * unit / view.zoom; view.y += e.deltaY * unit / view.zoom; clampView();
+    }
+  }, { passive: false });
+  const gesturePoint = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  canvas.addEventListener('gesturestart', e => { e.preventDefault(); pinching = true; pinchScale = 1; });
+  canvas.addEventListener('gesturechange', e => {
+    e.preventDefault();
+    const [x, y] = gesturePoint(e); zoomAt(x, y, e.scale / pinchScale); pinchScale = e.scale;
+  });
+  canvas.addEventListener('gestureend', e => { e.preventDefault(); pinching = false; });
 
   function zoomAt(sx, sy, f) {
     const before = toWorld(sx, sy);
@@ -1814,7 +1907,7 @@
         <li>Click an animal to see how it's doing, give it a new name, or <b>move</b> it to another exhibit. A keeper will walk it over.</li>
         <li>Two happy adults of the same species with spare room may have a <b>baby</b>. Babies grow up in ${GROW_DAYS} days.</li>
         <li>Too crowded? Sell an animal to another zoo. You only get back a little of what it cost.</li></ol>
-        <p class="muted">Drag to move around, scroll or pinch to zoom. Space pauses. Esc goes back to the look tool.</p>`;
+        <p class="muted">Move around by dragging, or sliding two fingers on a trackpad. Pinch to zoom (with a mouse, hold Ctrl or ⌘ and scroll), or use the + and − buttons. Space pauses. Esc goes back to the look tool.</p>`;
       return;
     }
     if (panelMode === 'info') {
@@ -1860,6 +1953,7 @@
         $('panel-title').textContent = 'Visitors';
         const mood = g.happy > 70 ? 'Having a great time' : g.happy > 45 ? 'Enjoying the zoo' : g.happy > 25 ? 'A bit bored' : 'Unhappy';
         el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.watch ? (g.watch.ex >= 0 ? ` Watching the ${plural(g.watch.sp)}.` : ' Taking a breather.') : ''}${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
+          ${g.wish ? `Came hoping to see the ${plural(g.wish)}${g.gotWish ? ', and did' : ''}. ` : ''}${g.plan && g.plan.length ? `${g.plan.length} more exhibit(s) to visit. ` : ''}
           ${g.fav ? `Favorite animal: ${Z.SPECIES[g.fav].name.toLowerCase()}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}.` : ''}</small>
           ${g.learned ? `<br><small>Learned: ${FACTS[g.learned]}</small>` : ''}</div>`;
       } else if (selected.kind === 'building') {
