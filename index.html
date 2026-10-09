@@ -70,9 +70,11 @@
   #panel.wide { width:400px; }
   #zoom { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:4px; }
   #zoom button { width:34px; height:34px; padding:0; font-size:18px; font-weight:bold; }
-  #news { position:absolute; left:10px; bottom:10px; max-width:min(420px, 70%); font-size:12px; pointer-events:none; }
+  #newsbox { position:absolute; left:10px; bottom:10px; max-width:min(420px, 70%); font-size:12px; pointer-events:none; }
+  #news-toggle { pointer-events:auto; font-size:11px; padding:1px 7px; background:rgba(255,255,255,.92); border-width:1.5px; }
   #news div { background:rgba(255,255,255,.92); border:1.5px solid var(--ink); padding:3px 7px; margin-top:4px; }
   #news div:not(:first-child) { opacity:.65; }
+  #newsbox.min #news { display:none; }
   #toast { position:absolute; left:50%; top:12px; transform:translate(-50%, -8px); background:var(--ink); color:var(--paper); padding:6px 12px; opacity:0; transition:.2s; pointer-events:none; max-width:90%; text-align:center; }
   #toast.show { opacity:1; transform:translate(-50%, 0); }
   #tip { position:absolute; display:none; background:var(--paper); border:1.5px solid var(--ink); padding:2px 6px; font-size:12px; pointer-events:none; white-space:nowrap; }
@@ -102,14 +104,14 @@
     .stat b { font-size:13px; }
     header h1 { font-size:18px; }
     #panel { top:auto; height:62%; width:100%; border-left:none; border-top:3px solid var(--line); }
-    #news { display:none; }
+    #newsbox { max-width:calc(100% - 70px); }
   }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <h1>3D ZOO <small id="ver" title="Game version">v1.2</small></h1>
+    <h1>3D ZOO <small id="ver" title="Game version">v1.4</small></h1>
     <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
@@ -125,7 +127,7 @@
   </header>
   <div id="stage">
     <canvas id="world"></canvas>
-    <div id="news"></div>
+    <div id="newsbox"><button id="news-toggle" aria-expanded="true" title="Show or hide the news">News ▾</button><div id="news"></div></div>
     <div id="zoom"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></div>
     <div id="tip"></div>
     <div id="toast"></div>
@@ -171,8 +173,8 @@
     </div>
   </nav>
 </div>
-<script src="animals.js?v=1.2"></script>
-<script src="world-art.js?v=1.2"></script>
-<script src="game.js?v=1.2"></script>
+<script src="animals.js?v=1.4"></script>
+<script src="world-art.js?v=1.4"></script>
+<script src="game.js?v=1.4"></script>
 </body>
 </html>

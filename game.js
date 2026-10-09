@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.2';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.4';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5;   // SNOW and TANK are exhibit floors; MESH is aviary fencing
@@ -112,7 +112,8 @@
   const WORLD_SCALE = 0.34;
   const GROW_DAYS = 4;
   const SELL_ADULT = 0.15, SELL_BABY = 0.1;          // selling returns only a small fraction
-  const MAX_GUESTS = 1000;
+  const GROUP = 2;              // each walking figure is a pair of visitors, so busy days don't jam the paths
+  const MAX_GUESTS = 1000;      // visitors (so up to 500 figures)
   // Zoo stars. Each level needs every goal met at once (guests = best single day). Earned stars are never lost.
   const STARS = [null,
     { need: [], animals: ['zebra', 'penguin', 'flamingo', 'monkey'],
@@ -139,7 +140,7 @@
     guests: { label: n => `${n} guests in one day`, have: () => Math.max(S.today.guests, ...S.history.map(h => h.guests || 0)) },
     species: { label: n => `${n} different species`, have: () => new Set(S.animals.map(a => a.sp)).size },
     births: { label: n => n > 1 ? `${n} babies born` : 'A baby born', have: () => S.totals.births || 0 },
-    crowd: { label: n => `${n} guests in the zoo at once`, have: () => Math.max(S.peakGuests || 0, guests.length) },
+    crowd: { label: n => `${n} guests in the zoo at once`, have: () => Math.max(S.peakGuests || 0, guests.length * GROUP) },
   };
   // Which color layers are on at each star level.
   const COLOR_AT = { plants: 2, water: 3, built: 4 };
@@ -198,6 +199,7 @@
   function log(msg) {
     S.log.unshift({ d: S.day, m: msg });
     S.log.length = Math.min(S.log.length, 40);
+    if (newsMin) newsUnread++;
     renderNews();
   }
   function spend(cat, n) { S.money -= n; S.today[cat] = (S.today[cat] || 0) + n; }
@@ -248,17 +250,26 @@
           const j = idx(x + dx, y + dy);
           if (S.tiles[j] === PATH && !vs.has(j)) { vs.add(j); (viewOf[j] = viewOf[j] || []).push(E.id); }
         }
-        for (const n of neighbors(i)) {
-          if (!isFence(S.tiles[n])) continue;
-          if (neighbors(n).some(m => S.tiles[m] === PATH)) {
-            gateOf[n] = gateOf[n] || [];
-            if (!gateOf[n].includes(E.id)) gateOf[n].push(E.id);
-          }
-        }
       });
-      E.reachable = E.tiles.some(i => neighbors(i).some(n => gateOf[n]));
-      // keepers put food just inside the gate, on a clear tile if there is one
-      const byGate = E.tiles.filter(i => neighbors(i).some(n => gateOf[n]));
+      const wall = new Map();                     // fence tile -> steps from the exhibit
+      let ring = []; E.tiles.forEach(i => neighbors(i).forEach(n => { if (isFence(S.tiles[n]) && !wall.has(n)) { wall.set(n, 1); ring.push(n); } }));
+      for (let d = 2; d <= 3 && ring.length; d++) {
+        const next = [];
+        ring.forEach(f => neighbors(f).forEach(n => { if (isFence(S.tiles[n]) && !wall.has(n)) { wall.set(n, d); next.push(n); } }));
+        ring = next;
+      }
+      const outside = m => S.tiles[m] === PATH || (isGround(S.tiles[m]) && S.tiles[m] !== TANK && exOf[m] < 0);
+      E.entries = [];
+      wall.forEach((d, f) => {
+        (gateOf[f] = gateOf[f] || []).includes(E.id) || gateOf[f].push(E.id);
+        if (neighbors(f).some(outside)) E.entries.push(f);
+      });
+      E.reachable = E.entries.length > 0;
+      // keepers put food just inside the way in nearest a path, on a clear tile if there is one
+      const near = (i, list) => list.reduce((m, f) => Math.min(m, Math.abs(tx(i) - tx(f)) + Math.abs(ty(i) - ty(f))), 99);
+      const pathEntries = E.entries.filter(f => neighbors(f).some(m => S.tiles[m] === PATH));
+      const doors = pathEntries.length ? pathEntries : E.entries;
+      const byGate = E.tiles.filter(i => neighbors(i).some(n => wall.get(n) === 1)).sort((a, b) => near(a, doors) - near(b, doors));
       const clear = t => !S.items[t] || KIND[S.items[t]] === 'toy';
       const pick = list => byGate.filter(i => list.includes(i)).find(clear) ?? list.find(clear) ?? list[0];
       E.feedTile = E.landTiles.length ? pick(E.landTiles) : pick(E.tankTiles);       // land animals' food
@@ -288,7 +299,7 @@
       s.path = []; s.workT = 0;
       const i = tileAt(s.x, s.y);
       if (s.type === 'keeper') { s.state = 'leave'; s.ex = i >= 0 ? exOf[i] : -1; s.catching = null; }
-      if (i < 0 || (S.tiles[i] !== PATH && (s.type === 'janitor' || exOf[i] < 0) && !gateOf[i])) warpToEntrance(s);
+      if (i < 0 || (s.type === 'janitor' ? S.tiles[i] !== PATH : S.tiles[i] === TANK && exOf[i] < 0)) warpToEntrance(s);
     });
     // Guests standing where a path was removed just head home.
     guests = guests.filter(g => { const i = tileAt(g.x, g.y); return i >= 0 && S.tiles[i] === PATH; });
@@ -398,7 +409,11 @@
     return p.grounded ? Math.min(40, v) : p.lonely ? Math.min(55, v) : v;
   };
 
-  const foodTileFor = a => EX[a.ex].tiles.find(i => S.food[i] && S.food[i][a.sp] > 0);
+  const foodTileFor = a => {
+    const aq = AQUATIC.has(a.sp), mine = i => exOf[i] === a.ex && ((S.tiles[i] === TANK) === aq), here = tileAt(a.x, a.y);
+    const piles = EX[a.ex].tiles.filter(i => S.food[i] && S.food[i][a.sp] > 0 && mine(i));
+    return piles.find(p => p === here || bfs(here, mine, j => j === p));
+  };
   const toyPlay = {};           // toy tile -> clock time its ball stops rolling (not saved)
 
   function updateAnimal(a, dt, st) {
@@ -569,7 +584,7 @@
       seen: new Set(), visits: new Map(), stay: visitLength(), leaving: false, lx: (Math.random() - 0.5) * 18, ly: (Math.random() - 0.5) * 18,
       litterT: 10 + Math.random() * 30, look: A.randomGuestLook(), moving: true,
       best: 0, fav: null, litterSeen: 0, rolled: new Set(), boost: 1 });
-    earn('tickets', S.ticket); S.today.guests++; S.totals.guests++;
+    earn('tickets', S.ticket * GROUP); S.today.guests += GROUP; S.totals.guests += GROUP;
   }
 
   function guestSees(g, i) {
@@ -609,14 +624,14 @@
   function leaveBuilding(g) {
     const b = g.inside; g.inside = null;
     if (b.type === 'gift') {
-      earn('gifts', PLUSH_PRICE); spend('merch', PLUSH_COST);
-      g.plush = g.fav; S.plushSales[g.fav] = (S.plushSales[g.fav] || 0) + 1; S.today.plush++;
+      earn('gifts', PLUSH_PRICE * GROUP); spend('merch', PLUSH_COST * GROUP);
+      g.plush = g.fav; S.plushSales[g.fav] = (S.plushSales[g.fav] || 0) + GROUP; S.today.plush += GROUP;
       g.extra += 4; mood(g);
     } else {
       const here = [...new Set(S.animals.map(a => a.sp))];
       const pool = here.length ? here : Object.keys(FACTS);
       g.learned = pool[Math.floor(Math.random() * pool.length)];
-      g.boost = 1.3; S.today.eduVisits++;
+      g.boost = 1.3; S.today.eduVisits += GROUP;
       g.extra += 6; mood(g);
     }
   }
@@ -690,7 +705,7 @@
     if (g.litterT <= 0) {
       g.litterT = 30 + Math.random() * 35;
       const i = tileAt(g.x, g.y);
-      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.22) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
+      if (i >= 0 && S.tiles[i] === PATH && Math.random() < 0.44) S.litter[i] = Math.min(5, (S.litter[i] || 0) + 1);
     }
     if (!g.path.length) {
       const i = tileAt(g.x, g.y);
@@ -706,7 +721,8 @@
         if (S.litter[i]) { g.litterPen += 0.8 * S.litter[i]; g.litterSeen += S.litter[i]; mood(g); }
         g.visits.set(i, (g.visits.get(i) || 0) + 1);
         if (maybeVisit(g, i)) return;
-        if (maybeWatch(g, i)) return;
+        g.walked = (g.walked || 0) + 1;
+        if (g.walked > 5 && maybeWatch(g, i)) return;   // new arrivals head into the zoo before stopping, so the gate doesn't jam
         const opts = neighbors(i).filter(n => S.tiles[n] === PATH);
         if (!opts.length) { g.leaving = true; return; }
         let best = Infinity, picks = [];
@@ -720,7 +736,7 @@
         const c = center(picks[0]); g.path = [{ x: c.x + g.lx, y: c.y + g.ly }];
       }
     }
-    const moved = stepAlong(g, (g.leaving ? 36 : 26) * dt);
+    const moved = stepAlong(g, (g.leaving ? 48 : 32) * dt);
     g.phase += moved * 0.45; g.moving = moved > 0;
   }
 
@@ -762,10 +778,11 @@
     const moved = stepAlong(s, staffSpeed(s) * dt); s.phase += moved * 0.45; s.moving = moved > 0;
   }
 
-  const keeperPass = E => j => S.tiles[j] === PATH || (exOf[j] === E && S.tiles[j] !== TANK) || (gateOf[j] && gateOf[j].includes(E));
+  const keeperPass = E => j => S.tiles[j] === PATH || openGround(j) || (exOf[j] === E && S.tiles[j] !== TANK) || (gateOf[j] && gateOf[j].includes(E));
+  const anyPass = j => S.tiles[j] !== TANK;                  // last resort: keepers have keys to every gate
   // where a keeper stands to work on an exhibit: on its land, or at the gate of an all-water tank
-  const workSpot = E => j => EX[E] && (EX[E].landTiles.length ? exOf[j] === E && S.tiles[j] !== TANK : !!(gateOf[j] && gateOf[j].includes(E)));
-  const openGround = j => !isFence(S.tiles[j]) && exOf[j] < 0;
+  const workSpot = E => j => EX[E] && (EX[E].landTiles.length ? exOf[j] === E && S.tiles[j] !== TANK : isFence(S.tiles[j]) && neighbors(j).some(n => exOf[n] === E));
+  const openGround = j => !isFence(S.tiles[j]) && exOf[j] < 0 && S.tiles[j] !== TANK;
   const skillOf = s => s.skill || 1;
   const staffSpeed = s => 38 * (1 + 0.15 * (skillOf(s) - 1));
   const workTime = (s, t) => t * (1 - 0.12 * (skillOf(s) - 1));
@@ -805,7 +822,7 @@
           } else if (total > 0) {
             spend('food', total);
             Object.entries(need).forEach(([sp, v]) => {
-              const ft = AQUATIC.has(sp) ? EX[s.ex].feedTileTank : EX[s.ex].feedTile, pile = S.food[ft] || (S.food[ft] = {});
+              const ft = AQUATIC.has(sp) ? EX[s.ex].feedTileTank : (s.feedAt ?? EX[s.ex].feedTile), pile = S.food[ft] || (S.food[ft] = {});
               pile[sp] = (pile[sp] || 0) + v.n;
             });
           }
@@ -843,7 +860,7 @@
             unreachableUntil[src] = nowT() + 20;
           }
         }
-        const claimed = new Set(S.staff.filter(o => o !== s && o.type === 'keeper' && o.state !== 'idle').map(o => o.ex));
+        const claimed = new Set(S.staff.filter(o => o !== s && o.type === 'keeper' && o.state === 'work').map(o => o.ex));
         let bestE = -1, bestScore = 22;
         st.forEach((x, id) => {
           if (!x.list.length || claimed.has(id) || (unreachableUntil[id] || 0) > nowT()) return;
@@ -853,11 +870,11 @@
           if (score > bestScore) { bestScore = score; bestE = id; }
         });
         if (bestE >= 0) {
-          const r = bfs(here, keeperPass(bestE), workSpot(bestE));
+          const r = bfs(here, keeperPass(bestE), workSpot(bestE)) || bfs(here, anyPass, workSpot(bestE));
           if (r) { s.ex = bestE; s.state = 'work'; s.fed = false; s.path = toPoints(r); s.task = 'Walking to an exhibit'; }
           else {
             unreachableUntil[bestE] = nowT() + 20;
-            if (!s.warned) { log('A keeper can\'t reach an exhibit. Make sure a path runs right alongside its fence.'); s.warned = true; }
+            if (!s.warned) { log('A keeper can\'t reach an exhibit. Make sure there\'s a path or open grass beside its fence.'); s.warned = true; }
           }
         }
         if (s.state === 'idle') { s.task = 'Waiting for a job'; wander(s); }
@@ -869,7 +886,7 @@
           const ft = E.feedTile, landFood = Object.keys(need).some(sp => !AQUATIC.has(sp));
           const r2 = !landFood || here === ft || !E.landTiles.length ? [] : bfs(here, land, j => j === ft);
           if (r2 && r2.length) { s.path = toPoints(r2); s.task = 'Bringing food'; }
-          else { s.workT = workTime(s, 2); s.doing = 'feed'; s.task = landFood ? 'Putting out food' : 'Feeding the tank'; }
+          else { s.feedAt = r2 === null && land(here) ? here : null; s.workT = workTime(s, 2); s.doing = 'feed'; s.task = landFood ? 'Putting out food' : 'Feeding the tank'; }
           return;
         }
         s.fed = true;
@@ -917,7 +934,8 @@
       } else if (s.state === 'leave') {
         if (S.tiles[here] === PATH) { s.state = 'idle'; s.ex = -1; s.fed = false; return; }
         const r = bfs(here, s.ex >= 0 ? (j => keeperPass(s.ex)(j) || openGround(j)) : (j => !isFence(S.tiles[j]) || !!gateOf[j]), j => S.tiles[j] === PATH);
-        if (r) { s.path = toPoints(r); s.task = 'Heading back to the path'; } else { warpToEntrance(s); s.state = 'idle'; }
+        const r3 = r || bfs(here, anyPass, j => S.tiles[j] === PATH);
+        if (r3) { s.path = toPoints(r3); s.task = 'Heading back to the path'; } else { warpToEntrance(s); s.state = 'idle'; }
       }
     }
     const moved = stepAlong(s, staffSpeed(s) * (s.state === 'lead' ? 0.7 : 1) * dt); s.phase += moved * 0.45; s.moving = moved > 0;
@@ -963,15 +981,15 @@
     const st = exStats(); lastExStats = st;
     S.animals.forEach(a => updateAnimal(a, dt, st));
     S.arrivalAcc += guestsPerDay() / DAY * dt;
-    while (S.arrivalAcc >= 1) { S.arrivalAcc -= 1; if (guests.length < MAX_GUESTS) spawnGuest(); }
+    while (S.arrivalAcc >= GROUP) { S.arrivalAcc -= GROUP; if (guests.length * GROUP < MAX_GUESTS) spawnGuest(); }
     countGuests();
     guests.forEach(g => updateGuest(g, dt));
     guests = guests.filter(g => {
-      if (g.gone) { S.rep = S.rep * 0.95 + g.happy * 0.05; guestComments(g); if (selected && selected.ref === g) selected = null; }
+      if (g.gone) { S.rep = S.rep * 0.92 + g.happy * 0.08; guestComments(g); if (selected && selected.ref === g) selected = null; }
       return !g.gone;
     });
     S.staff.forEach(s => (s.type === 'janitor' ? updateJanitor(s, dt) : updateKeeper(s, dt, st)));
-    if (guests.length > (S.peakGuests || 0)) S.peakGuests = guests.length;
+    if (guests.length * GROUP > (S.peakGuests || 0)) S.peakGuests = guests.length * GROUP;
     checkStars(false);
     S.time += dt;
     if (S.time >= DAY) endOfDay(st);
@@ -1639,16 +1657,28 @@
     $('money').classList.toggle('neg', S.money < 0);
     $('day').textContent = `Day ${S.day}`;
     $('clock').style.width = `${(S.time / DAY) * 100}%`;
-    $('guests').textContent = guests.length;
+    $('guests').textContent = guests.length * GROUP;
     $('rating').textContent = Math.round(S.rep);
     $('stars').textContent = starText(S.stars);
     $('ticket').textContent = money(S.ticket);
   }
 
+  // The news in the corner can be minimized. While it's hidden, the button counts what's new.
+  // The choice is remembered on this device; on a phone it starts minimized. The full news is always in the Menu.
+  let newsMin = (() => { try { const v = localStorage.getItem('3dzoo-news-min'); return v === null ? innerWidth <= 640 : v === '1'; } catch (e) { return innerWidth <= 640; } })();
+  let newsUnread = 0;
   function renderNews() {
-    const el = $('news'); if (!el) return;
-    el.innerHTML = S.log.slice(0, 3).map(l => `<div>${escapeHtml(l.m)}</div>`).join('');
+    const el = $('news'), box = $('newsbox'), btn = $('news-toggle'); if (!el) return;
+    box.classList.toggle('min', newsMin);
+    btn.setAttribute('aria-expanded', String(!newsMin));
+    btn.textContent = newsMin ? `News ▸${newsUnread ? ` (${newsUnread} new)` : ''}` : 'News ▾';
+    el.innerHTML = newsMin ? '' : S.log.slice(0, 3).map(l => `<div>${escapeHtml(l.m)}</div>`).join('');
   }
+  $('news-toggle').onclick = () => {
+    newsMin = !newsMin; newsUnread = 0;
+    try { localStorage.setItem('3dzoo-news-min', newsMin ? '1' : '0'); } catch (e) { /* storage blocked: just don't remember */ }
+    renderNews();
+  };
   const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function openPanel(mode) {
@@ -1827,7 +1857,7 @@
         if ($('b-train')) $('b-train').onclick = () => train(s);
       } else if (selected.kind === 'guest') {
         const g = selected.ref;
-        $('panel-title').textContent = 'Guest';
+        $('panel-title').textContent = 'Visitors';
         const mood = g.happy > 70 ? 'Having a great time' : g.happy > 45 ? 'Enjoying the zoo' : g.happy > 25 ? 'A bit bored' : 'Unhappy';
         el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.watch ? (g.watch.ex >= 0 ? ` Watching the ${plural(g.watch.sp)}.` : ' Taking a breather.') : ''}${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
           ${g.fav ? `Favorite animal: ${Z.SPECIES[g.fav].name.toLowerCase()}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}.` : ''}</small>
@@ -1855,7 +1885,7 @@
           <small>Animals: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ') || 'none yet'}<br>
           Items: ${Object.entries(E.kinds).map(([k, v]) => `${v} ${ITEM_NAME[k] || k}`).join(', ') || 'none'}<br>
           ${E.tankTiles.length ? `Tank water: ${E.tankTiles.length} tiles${E.items.tank ? '' : ' (needs 12 for an aquarium)'}<br>` : ''}${E.snow ? `Snow: ${E.snow} tiles${E.items.snow ? ', snowy enough for cold animals' : ' (cover half the land for cold animals)'}<br>` : ''}${E.aviary ? 'An aviary: birds can live here.<br>' : ''}${st.mixed ? 'A mixed exhibit.<br>' : ''}
-          Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers can\'t get in:</b> run a path right beside the fence.'}</small></div>`;
+          Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers have to cut through other exhibits to get here.</b> A path or open grass beside the fence makes it easier.'}</small></div>`;
       }
       return;
     }

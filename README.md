@@ -88,6 +88,11 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.4** (Oct 8, 2026)
+  - Keepers can reach every exhibit: they walk across open grass, get through walls that are two or three fences thick (like doubled-up aviary mesh), get around tank water to land on the far side, and as a last resort cut through a neighboring exhibit. Keepers walking out or catching an escaped animal no longer block others from an exhibit, and food always goes where the animals can reach it.
+  - Less crowding: each person walking around the zoo now stands for a pair of visitors, so the paths hold half as many figures. Visitor counts, ticket money, gift-shop sales, and star goals still count every visitor. New arrivals walk into the zoo before stopping to watch, and everyone walks a little faster.
+- **v1.3** (Oct 8, 2026)
+  - The news in the bottom-left corner can be minimized with its News button. While it's hidden, the button shows how many new messages have come in. The full news list is still in the Menu.
 - **v1.2** (Oct 8, 2026)
   - Fixed crowding: visits are shorter and grow with the number of exhibits, guests spread across the path width, avoid packed spots, and no more than four watch from the same spot. Guests head home once they've seen everything.
   - Fixed the rating always sitting above 90: litter and dirty exhibits now really bother guests, and a great collection of animals can't hide a messy zoo.
