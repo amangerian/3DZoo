@@ -93,6 +93,18 @@
       ell(c, x, y - 13, 2, 2); c.fillStyle = INK; c.fill();
     },
 
+    // Exhibit sign: a small board on two legs, with a few lines of text and an "i" for information.
+    sign(c, x, y) {
+      Art.shadow(c, x, y, 9);
+      line(c, x - 6, y, x - 6, y - 10, 1.8, B('#555555', '#6b4a2b'));
+      line(c, x + 6, y, x + 6, y - 10, 1.8, B('#555555', '#6b4a2b'));
+      c.beginPath(); c.rect(x - 10, y - 21, 20, 12); fillStroke(c, B('#ffffff', '#f4ead2'), 1.6);
+      c.beginPath(); c.arc(x - 6, y - 15, 2.6, 0, Math.PI * 2); c.fillStyle = B('#111111', '#2f6b3a'); c.fill();
+      line(c, x - 6, y - 16, x - 6, y - 13.6, 1, WHITE);
+      c.fillStyle = WHITE; c.fillRect(x - 6.5, y - 17.6, 1, 0.9);
+      [-18, -15, -12].forEach((dy, k) => line(c, x - 2, y + dy, x + (k === 2 ? 4 : 7), y + dy, 1, B('#777777', '#8a7a5a')));
+    },
+
     // Rope-wrapped scratching post. wobble shakes it while an animal scratches.
     post(c, x, y, wobble = 0) {
       Art.shadow(c, x, y, 9);

@@ -88,6 +88,20 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.8** (Oct 9, 2026)
+  - The rating is now a scorecard of what makes a good zoo, instead of the mood of guests on their way out. Click the rating to see every part and its share:
+    - Collection (36%): species variety 15%, headline animals 9%, collection size 7%, breeding success (babies born in the last 10 days) 5%.
+    - Animal care (44%): habitat needs met 14%, space 9%, social groups 7%, nutrition 7%, clean exhibits 7%.
+    - Guest experience (20%): clean paths 7%, ticket value 7%, education 6%.
+  - The rating moves toward the score over about a day. A bigger, more varied zoo now scores higher instead of lower, and clean exhibits are judged by the share of exhibits that are clean, so more animals isn't a penalty in itself.
+  - Variety draws guests. Each species adds a set amount, and each extra animal of a species you already have draws a little less than the one before.
+  - Animals have social needs. Herd and flock animals want a group of their own kind (penguins and flamingos 6, zebras and monkeys 4, lions, elephants, giraffes and hippos 3, and so on). Solitary animals (bears, snow leopards, polar bears, owls, eagles, sea hawks, anacondas) get stressed with more than two adults together. Animal panels show a Company bar.
+  - Ticket value: the price guests think is fair rises as the zoo gets better.
+  - New exhibit sign ($50). Put it on an exhibit's fence where it runs beside a path. Signs and the education center make up the education score.
+  - Fix: babies born overnight are now counted in each day's records.
+- **v1.7** (Oct 9, 2026)
+  - Janitors split the paths between them. Each one gets their own connected stretch of path, about the same size as everyone else's, and sweeps and patrols there. A janitor whose area is clean will go help in another area once litter has piled up there, and never heads for litter another janitor is already walking to. The areas are redrawn whenever you add or remove paths or hire or let go of a janitor.
+  - Click a janitor to see their area shaded on the map.
 - **v1.6** (Oct 8, 2026)
   - Guests visit with a plan instead of wandering. Each arrives hoping to see one animal in particular (popular animals more often), plus a few other exhibits (more in a bigger zoo). They visit them nearest-first, head for the least crowded spot along each fence, pick routes that avoid crowded paths where there's a choice, maybe stop at the gift shop or education center, then walk out. They walk a little faster too.
   - Guests say whether they got to see the animal they came for.
