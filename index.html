@@ -68,6 +68,10 @@
   .staffrow button { margin:0; padding:3px 6px; font-size:12px; }
   .skill { letter-spacing:1px; }
   #panel.wide { width:400px; }
+  .exhead { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:4px; }
+  .exhead button { flex:0 0 auto; margin:0; padding:3px 8px; }
+  .row .lbl { flex:0 0 82px; }
+  .row .num { flex:0 0 24px; text-align:right; }
   #zoom { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:4px; }
   #zoom button { width:34px; height:34px; padding:0; font-size:18px; font-weight:bold; }
   #newsbox { position:absolute; left:10px; bottom:10px; max-width:min(420px, 70%); font-size:12px; pointer-events:none; }
@@ -111,7 +115,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>3D ZOO <small id="ver" title="Game version">v1.8</small></h1>
+    <h1>3D ZOO <small id="ver" title="Game version">v1.9</small></h1>
     <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
@@ -141,6 +145,7 @@
       <button data-tab="build">Build</button>
       <button data-tab="animals">Animals</button>
       <button data-tab="staff">Staff</button>
+      <button data-tab="exhibits">Exhibits</button>
     </div>
     <div id="tray">
       <button data-tool="look">Look<small>move, inspect</small></button>
@@ -150,6 +155,7 @@
         <button data-tool="fence">Fence<small>$25</small></button>
         <button data-tool="mesh">Aviary mesh<small>$40</small></button>
         <button data-tool="snow">Snow<small>$40/tile</small></button>
+        <button data-tool="pool" title="Swim pool: water inside an exhibit for animals that love to swim">Swim pool<small>$60/tile</small></button>
         <button data-tool="tank">Tank water<small>$150/tile</small></button>
         <span class="sep"></span>
         <button data-tool="tree">Oak<small>$150</small></button>
@@ -162,20 +168,25 @@
         <button data-tool="toy">Ball<small>$120</small></button>
         <button data-tool="wheel">Wheel<small>$300</small></button>
         <button data-tool="post">Scratch post<small>$90</small></button>
+        <button data-tool="climb" title="Climbing frame: monkeys love to climb it">Climbing frame<small>$350</small></button>
+        <button data-tool="perch" title="Perch: a branch for birds to sit on">Perch<small>$110</small></button>
+        <button data-tool="buoy" title="Floating buoy: goes in tank water. Orcas push it around">Buoy<small>$400</small></button>
+        <button data-tool="bubbler" title="Bubble curtain: goes in tank water. Sharks swim through it">Bubble curtain<small>$600</small></button>
+        <button data-tool="hoop" title="Floating hoop: goes in tank water. Dolphins leap through it">Hoop<small>$300</small></button>
         <span class="sep"></span>
         <button data-tool="gift">Gift shop<small>$2,500</small></button>
         <button data-tool="edu">Education<small>$4,000</small></button>
-        <button data-tool="sign" title="Exhibit sign: put it on an exhibit fence beside a path">Sign<small>$50</small></button>
         <span class="sep"></span>
         <button data-tool="remove">Remove<small>bulldoze</small></button>
       </div>
       <div class="pane" data-pane="animals"></div>
       <div class="pane" data-pane="staff"></div>
+      <div class="pane" data-pane="exhibits"></div>
     </div>
   </nav>
 </div>
-<script src="animals.js?v=1.8"></script>
-<script src="world-art.js?v=1.8"></script>
-<script src="game.js?v=1.8"></script>
+<script src="animals.js?v=1.9"></script>
+<script src="world-art.js?v=1.9"></script>
+<script src="game.js?v=1.9"></script>
 </body>
 </html>

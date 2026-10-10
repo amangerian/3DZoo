@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>3D Zoo — Animal Approval</title>
+<title>3D Zoo — Animal Gallery</title>
 <style>
   :root { --ink:#111; --paper:#fff; --soft:#f2f2f2; --mid:#777; }
   * { box-sizing: border-box; }
@@ -26,11 +26,11 @@
 <body>
 <header>
   <h1>3D ZOO</h1>
-  <p>Animal approval sheet — only approved adults can be bought, and only approved babies can be born.</p>
+  <p>Animal gallery: every animal's art, walking and standing, adult and baby, from the side, front, and back. (Contains spoilers for hidden animals.)</p>
 </header>
-<button class="toggle" id="toggle">Show standing pose</button>
+<button class="toggle" id="toggle">Show standing pose</button> <button class="toggle" id="color">Show in color</button>
 <div class="grid" id="grid"></div>
-<script src="animals.js?v=1.8"></script>
+<script src="animals.js?v=1.9"></script>
 <script>
   const W = 320, H = 420, cards = [];
   let moving = true;
@@ -42,13 +42,13 @@
     card.appendChild(cv);
     const info = document.createElement('div'); info.className = 'info';
     info.innerHTML = `<div class="name">${s.name}${id === 'seahawk' ? ' (osprey)' : ''}${s.secret ? ' <span class="status">SECRET</span>' : ''}</div>
-      <div class="wants">Wants: ${s.wants.join(', ')}</div>
-      <div class="row">Adult, side ${badge(a.adult)}</div><div class="row">Baby, side ${badge(a.baby)}</div>
-      <div class="row">Adult, front/back ${badge(a.adultFrontBack)}</div><div class="row">Baby, front/back ${badge(a.babyFrontBack)}</div>`;
+      <div class="wants">Wants: ${s.wants.join(', ')}</div>`;
     card.appendChild(info);
     document.getElementById('grid').appendChild(card);
     cards.push({ id, ctx: cv.getContext('2d'), s });
   });
+  let colored = false;
+  document.getElementById('color').onclick = e => { colored = !colored; ZooAnimals.setColor(colored ? 1 : 0); e.target.textContent = colored ? 'Show in black and white' : 'Show in color'; };
   document.getElementById('toggle').onclick = e => {
     moving = !moving; e.target.textContent = moving ? 'Show standing pose' : 'Show walking';
   };

@@ -4,31 +4,54 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.8';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.9';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
-  const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5;   // SNOW and TANK are exhibit floors; MESH is aviary fencing
-  const isGround = t => t === GRASS || t === SNOW || t === TANK;
+  const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
+  const isGround = t => t === GRASS || t === SNOW || t === TANK || t === POOL;
+  const isDry = t => t !== TANK && t !== POOL;           // solid ground an animal can stand on
   const isFence = t => t === FENCE || t === MESH;
-  const COST = { path: 10, fence: 25, mesh: 40, snow: 40, tank: 150, tree: 150, acacia: 170, palm: 180, pine: 160, bush: 60, water: 200,
-    toy: 120, wheel: 300, post: 90, gift: 2500, edu: 4000, sign: 50 };
+  const COST = { path: 10, fence: 25, mesh: 40, snow: 40, pool: 60, tank: 150, tree: 150, acacia: 170, palm: 180, pine: 160, bush: 60, water: 200,
+    toy: 120, wheel: 300, post: 90, perch: 110, climb: 350, buoy: 400, bubbler: 600, hoop: 300, gift: 2500, edu: 4000 };
   // Every kind of tree counts as a "tree" and every toy as a "toy" for what animals want.
   // ('tree' is the oak and 'toy' is the ball, so older saves keep working.)
-  const KIND = { tree: 'tree', acacia: 'tree', palm: 'tree', pine: 'tree', toy: 'toy', wheel: 'toy', post: 'toy' };
+  const KIND = { tree: 'tree', acacia: 'tree', palm: 'tree', pine: 'tree', toy: 'toy', wheel: 'toy', post: 'toy', perch: 'toy', climb: 'toy', buoy: 'toy', bubbler: 'toy', hoop: 'toy' };
   const ITEM_NAME = { tree: 'oak tree', acacia: 'acacia tree', palm: 'palm tree', pine: 'pine tree', bush: 'bush', water: 'pond',
-    toy: 'ball', wheel: 'exercise wheel', post: 'scratching post', snow: 'snow', tank: 'aquarium tank', mesh: 'aviary mesh', sign: 'exhibit sign' };
-  const ITEMS = ['tree', 'acacia', 'palm', 'pine', 'bush', 'water', 'toy', 'wheel', 'post'];
+    toy: 'ball', wheel: 'exercise wheel', post: 'scratching post', perch: 'perch', climb: 'climbing frame', buoy: 'floating buoy', bubbler: 'bubble curtain', hoop: 'floating hoop', snow: 'snow', pool: 'swim pool', tank: 'aquarium tank', mesh: 'aviary mesh' };
+  const ITEMS = ['tree', 'acacia', 'palm', 'pine', 'bush', 'water', 'toy', 'wheel', 'post', 'perch', 'climb', 'buoy', 'bubbler', 'hoop'];
+  const WATER_TOYS = ['buoy', 'bubbler', 'hoop'];      // these float in (or sit under) aquarium tank water
+  // Which toy each animal wants, when it wants one. ('toy' in a species' wants list means this one.)
+  const TOY_WANT = { lion: 'post', elephant: 'toy', penguin: 'toy', bear: 'post', monkey: 'climb', snowleopard: 'wheel', polarbear: 'toy',
+    orca: 'buoy', shark: 'bubbler', dolphin: 'hoop', parrot: 'perch', unicorn: 'wheel', raptor: 'post' };
+  // Who can use which toy: birds perch, monkeys climb, tank animals get the water toys, and the rest the ground toys.
+  function canUseToy(sp, it) {
+    if (it === 'perch') return FLYERS.has(sp);
+    if (it === 'climb') return sp === 'monkey';
+    if (WATER_TOYS.includes(it)) return AQUATIC.has(sp);
+    if (it === 'toy') return !FLYERS.has(sp);
+    return !FLYERS.has(sp) && !AQUATIC.has(sp) && !['penguin', 'flamingo', 'anaconda', 'basilisk', 'ostrich'].includes(sp);
+  }
+  Object.entries(Z.SPECIES).forEach(([id, d]) => { d.wants = d.wants.map(w => (w === 'toy' ? TOY_WANT[id] || 'toy' : w)); });
+  if (!Z.SPECIES.shark.wants.includes('bubbler')) Z.SPECIES.shark.wants.push('bubbler');
   // Favorite kinds of tree and toy. Having one in the exhibit makes an animal a little happier.
   const FAVORITE = {
     lion: ['acacia', 'post'], elephant: ['acacia', 'toy'], giraffe: ['acacia'], zebra: ['acacia'], penguin: ['toy'],
     bear: ['pine', 'post'], monkey: ['palm', 'wheel'], flamingo: ['palm'], snowleopard: ['pine', 'wheel'],
     ostrich: ['acacia'], seahawk: ['pine'], hippo: ['toy'], anaconda: ['palm'], rhino: ['acacia', 'post'],
     polarbear: ['pine', 'toy'], shark: [], orca: ['toy'], triceratops: ['palm'], basilisk: [], unicorn: ['tree', 'wheel'],
-    parrot: ['palm', 'toy'], toucan: ['palm'], owl: ['pine', 'tree'], eagle: ['pine'],
+    parrot: ['palm', 'perch'], toucan: ['palm', 'perch'], owl: ['pine', 'perch'], eagle: ['pine', 'perch'],
+    dolphin: ['hoop'], trex: ['palm'], raptor: ['post'], titanosaur: ['palm', 'pine'], dragon: ['pine'],
   };
+  FAVORITE.seahawk = [...FAVORITE.seahawk, 'perch'];
+  FAVORITE.monkey = ['palm', 'climb']; FAVORITE.orca = ['buoy']; FAVORITE.shark = ['bubbler'];
   const FLYERS = new Set(['seahawk', 'parrot', 'toucan', 'owl', 'eagle']);   // can only live in an aviary
-  const AQUATIC = new Set(['shark', 'orca']);                         // live only in aquarium tank water
-  const SPECIALIST = new Set(['shark', 'orca', 'triceratops', 'basilisk', 'unicorn']);   // need a keeper with skill 3+
+  const AQUATIC = new Set(['shark', 'orca', 'dolphin']);              // live only in aquarium tank water
+  // Land animals that love the water: they swim in an exhibit's swim pool (and a pool of 3+ tiles counts as their water).
+  const SWIMMERS = new Set(['penguin', 'flamingo', 'bear', 'polarbear', 'elephant', 'hippo', 'rhino', 'anaconda']);
+  const POOL_MIN = 3;
+  // Where an animal may stand or swim inside its exhibit.
+  const canBeOn = (sp, t) => AQUATIC.has(sp) ? t === TANK : t !== TANK && (t !== POOL || SWIMMERS.has(sp));
+  const SPECIALIST = new Set(['shark', 'orca', 'dolphin', 'triceratops', 'basilisk', 'unicorn', 'trex', 'raptor', 'titanosaur', 'dragon']);   // need a keeper with skill 3+
   const SPECIALIST_SKILL = 3;
   // Species that share the African savanna in the wild can share an exhibit. Everyone else lives with their own kind.
   const SAVANNA = ['zebra', 'giraffe', 'ostrich', 'rhino', 'elephant', 'hippo'];
@@ -43,6 +66,7 @@
     orca: { group: 2 }, parrot: { group: 4 }, toucan: { group: 2 }, triceratops: { group: 3 }, unicorn: { group: 3 },
     bear: { alone: 2 }, snowleopard: { alone: 2 }, polarbear: { alone: 2 }, seahawk: { alone: 2 }, owl: { alone: 2 },
     eagle: { alone: 2 }, anaconda: { alone: 2 }, basilisk: { alone: 1 },
+    dolphin: { group: 3 }, raptor: { group: 3 }, titanosaur: { group: 2 }, trex: { alone: 2 }, dragon: { alone: 1 },
   };
   const capital = t => t.charAt(0).toUpperCase() + t.slice(1);
   const BUILDINGS = {
@@ -65,6 +89,9 @@
     unicorn: { kind: 'fruit', food: 'apples and wildflowers', cost: 25 },
     parrot: { kind: 'fruit', food: 'fruit and nuts', cost: 5 }, toucan: { kind: 'fruit', food: 'fruit', cost: 6 },
     owl: { kind: 'meat', food: 'mice', cost: 8 }, eagle: { kind: 'fish', food: 'fish', cost: 12 },
+    dolphin: { kind: 'fish', food: 'fish and squid', cost: 45 }, trex: { kind: 'meat', food: 'meat', cost: 90 },
+    raptor: { kind: 'meat', food: 'meat', cost: 18 }, titanosaur: { kind: 'leaves', food: 'leafy branches and ferns', cost: 140 },
+    dragon: { kind: 'meat', food: 'roasted meat (it cooks its own)', cost: 150 },
   };
   // One fact per species for the education center (kept to well-established facts).
   const FACTS = {
@@ -92,6 +119,11 @@
     toucan: 'A toucan\'s huge bill is surprisingly light. Inside, it is a honeycomb of bone and air.',
     owl: 'Owls can\'t move their eyes, so they turn their heads instead, as far as about 270 degrees.',
     eagle: 'Bald eagles build some of the largest nests of any bird in North America.',
+    dolphin: 'Bottlenose dolphins sleep with one half of the brain at a time, keeping the other half alert.',
+    trex: 'Tyrannosaurus rex had one of the strongest bites of any land animal ever, strong enough to crush bone.',
+    raptor: 'The real Velociraptor was about the size of a turkey and had feathers, much smaller than the movie version.',
+    titanosaur: 'Titanosaurs were among the largest animals ever to walk on land. Some, like Argentinosaurus, may have been over 30 meters long.',
+    dragon: 'Dragons are creatures of legend: stories of them come from all over the world, from European knights\' tales to the Chinese long.',
   };
   const MAX_SKILL = 5;
   const wageOf = s => Math.round(STAFF[s.type].wage * (1 + 0.3 * ((s.skill || 1) - 1)));     // better-trained staff earn more
@@ -117,6 +149,7 @@
     ostrich: { speed: 20, space: 5 }, seahawk: { speed: 18, space: 3 }, hippo: { speed: 9, space: 9 }, anaconda: { speed: 7, space: 4 },
     rhino: { speed: 11, space: 9 }, polarbear: { speed: 11, space: 8 }, shark: { speed: 16, space: 25 }, orca: { speed: 18, space: 45 },
     triceratops: { speed: 9, space: 12 }, basilisk: { speed: 8, space: 10 }, unicorn: { speed: 16, space: 7 },
+    dolphin: { speed: 24, space: 30 }, trex: { speed: 13, space: 30 }, raptor: { speed: 24, space: 6 }, titanosaur: { speed: 7, space: 60 }, dragon: { speed: 14, space: 40 },
     parrot: { speed: 18, space: 2 }, toucan: { speed: 18, space: 2 }, owl: { speed: 16, space: 3 }, eagle: { speed: 18, space: 5 },
   };
   const WORLD_SCALE = 0.34;
@@ -124,15 +157,18 @@
   const SELL_ADULT = 0.15, SELL_BABY = 0.1;          // selling returns only a small fraction
   const GROUP = 2;              // each walking figure is a pair of visitors, so busy days don't jam the paths
   const MAX_GUESTS = 1000;      // visitors (so up to 500 figures)
-  // Zoo stars. Each level needs every goal met at once (guests = best single day). Earned stars are never lost.
+  // Zoo stars. Each level needs every goal met at once. Earned stars are never lost.
+  // hidden: what the level unlocks stays a secret (not in the shop or the star list) until it's earned.
   const STARS = [null,
     { need: [], animals: ['zebra', 'penguin', 'flamingo', 'monkey'],
       tools: ['path', 'fence', 'snow', 'tree', 'acacia', 'palm', 'pine', 'bush', 'water', 'toy', 'wheel', 'post', 'remove'] },
-    { need: [['rating', 65], ['guests', 45], ['crowd', 30]], animals: ['giraffe', 'bear', 'ostrich', 'seahawk', 'parrot'], tools: ['gift', 'mesh'], color: 'Grass, trees, and bushes turn green' },
-    { need: [['rating', 70], ['species', 4], ['births', 1], ['guests', 80], ['crowd', 55]], animals: ['lion', 'snowleopard', 'hippo', 'anaconda', 'toucan', 'owl'], tools: ['edu'], color: 'Water turns blue' },
-    { need: [['rating', 75], ['species', 5], ['guests', 120], ['crowd', 85]], animals: ['elephant', 'rhino', 'polarbear', 'eagle'], tools: [], color: 'Paths, fences, and buildings get their colors' },
-    { need: [['rating', 80], ['species', 8], ['guests', 170], ['crowd', 120]], animals: ['shark', 'orca'], tools: ['tank'], color: 'Animals in color (art still to come)' },
-    { need: [['rating', 85], ['species', 14], ['guests', 260], ['crowd', 180], ['births', 30]], animals: [], tools: [], mystery: true },
+    { need: [['rating', 65], ['crowd', 30]], animals: ['giraffe', 'bear', 'ostrich', 'seahawk', 'parrot'], tools: ['gift', 'mesh'], color: 'Grass, trees, and bushes turn green' },
+    { need: [['rating', 70], ['species', 4], ['births', 1], ['crowd', 55]], animals: ['lion', 'snowleopard', 'hippo', 'anaconda', 'toucan', 'owl'], tools: ['edu'], color: 'Water turns blue' },
+    { need: [['rating', 75], ['species', 5], ['crowd', 85]], animals: ['elephant', 'rhino', 'polarbear', 'eagle'], tools: [], color: 'Paths, fences, and buildings get their colors' },
+    { need: [['rating', 80], ['species', 8], ['crowd', 120]], animals: ['shark', 'orca', 'dolphin'], tools: ['tank', 'buoy', 'bubbler', 'hoop'], color: 'Guests and staff get their colors' },
+    { need: [['rating', 85], ['species', 14], ['crowd', 180], ['births', 30]], animals: [], tools: [], mystery: true, color: 'Animals in full color' },
+    { need: [['rating', 91], ['species', 18], ['crowd', 350], ['births', 60]], animals: ['trex', 'raptor', 'titanosaur'], tools: [], hidden: true },
+    { need: [['rating', 97], ['species', 22], ['crowd', 600], ['births', 100]], animals: ['dragon'], tools: [], hidden: true },
   ];
   // Secret animals never show in the shop or the star list until their unlock is found.
   const SECRETS = {
@@ -146,7 +182,7 @@
   };
   const MAX_STARS = STARS.length - 1;
   // Bump this whenever the star goals change: saved zoos are then re-checked against the new goals when they load.
-  const STAR_RULES = 2;
+  const STAR_RULES = 3;
   const GOAL = {
     rating: { label: n => `Rating ${n}`, have: () => Math.round(S.rep) },
     guests: { label: n => `${n} guests in one day`, have: () => Math.max(S.today.guests, ...S.history.map(h => h.guests || 0)) },
@@ -155,9 +191,9 @@
     crowd: { label: n => `${n} guests in the zoo at once`, have: () => Math.max(S.peakGuests || 0, guests.length * GROUP) },
   };
   // Which color layers are on at each star level.
-  const COLOR_AT = { plants: 2, water: 3, built: 4 };
+  const COLOR_AT = { plants: 2, water: 3, built: 4, people: 5, animals: 6 };
   const SAVE_KEY = '3dzoo-save-v1';
-  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e', acacia: 'a', palm: 'p', pine: 'n', wheel: 'h', post: 'r', sign: 's' };
+  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e', acacia: 'a', palm: 'p', pine: 'n', wheel: 'h', post: 'r' };
   const CHAR_ITEM = Object.fromEntries(Object.entries(ITEM_CHAR).map(([k, v]) => [v, k]));
   const NAMES = ['Mabel', 'Otis', 'Pip', 'Juniper', 'Hank', 'Clementine', 'Biscuit', 'Rosie', 'Gus', 'Waffles', 'Luna',
     'Moose', 'Pickles', 'Daisy', 'Ziggy', 'Noodle', 'Fern', 'Bruno', 'Olive', 'Tater', 'Winnie', 'Rocco', 'Peanut', 'Hazel',
@@ -176,8 +212,9 @@
     return out;
   }
   const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString();
-  const approved = (sp, baby) => !!(Z.APPROVED[sp] && Z.APPROVED[sp][baby ? 'baby' : 'adult']);
-  const plural = sp => Z.SPECIES[sp].name.toLowerCase() + 's';
+  const approved = () => true;      // every animal's art is cleared for the game (no approval step any more)
+  const lowName = d => d.lower || d.name.toLowerCase();       // 'T. rex' keeps its capital
+  const plural = sp => Z.SPECIES[sp].plural || lowName(Z.SPECIES[sp]) + 's';
   const INCOME = { tickets: 'Tickets', gifts: 'Gift shop', sales: 'Animal sales' };
   const COSTS = { staff: 'Staff', food: 'Animal food', build: 'Building and upkeep', animals: 'Buying animals', merch: 'Gift shop stock' };
   const newToday = () => ({ guests: 0, births: 0, eduVisits: 0, plush: 0, tickets: 0, gifts: 0, sales: 0,
@@ -246,16 +283,16 @@
       if (open || region.length > 500) continue;
       const id = EX.length, items = { tree: 0, bush: 0, water: 0, toy: 0 }, kinds = {};
       region.forEach(i => { exOf[i] = id; const it = S.items[i]; if (it) { kinds[it] = (kinds[it] || 0) + 1; items[KIND[it] || it]++; } });
-      const tankTiles = region.filter(i => S.tiles[i] === TANK), landTiles = region.filter(i => S.tiles[i] !== TANK);
+      const tankTiles = region.filter(i => S.tiles[i] === TANK), poolTiles = region.filter(i => S.tiles[i] === POOL);
+      const landTiles = region.filter(i => isDry(S.tiles[i]));
       const snow = landTiles.filter(i => S.tiles[i] === SNOW).length;
       items.snow = landTiles.length && snow >= landTiles.length * 0.5 ? 1 : 0;     // snowy if at least half the land is snow
       items.tank = tankTiles.length >= 12 ? 1 : 0;                                  // a proper aquarium tank
+      if (poolTiles.length >= POOL_MIN) items.water++;                             // a swim pool counts as water
       const edge = new Set(); region.forEach(i => neighbors(i).forEach(n => { if (isFence(S.tiles[n])) edge.add(n); }));
       const aviary = edge.size > 0 && [...edge].every(n => S.tiles[n] === MESH);
-      EX.push({ id, tiles: region, items, kinds, tankTiles, landTiles, snow, aviary });
+      EX.push({ id, tiles: region, items, kinds, tankTiles, landTiles, poolTiles, snow, aviary });
     }
-    // exhibit signs sit on a fence and belong to the exhibit(s) that fence closes in
-    for (let i = 0; i < MW * MH; i++) if (S.items[i] === 'sign') neighbors(i).forEach(n => { if (exOf[n] >= 0) EX[exOf[n]].signed = true; });
     // what guests can see from each path tile (within 2 tiles), and keeper gates
     EX.forEach(E => {
       const vs = new Set();
@@ -302,12 +339,12 @@
       a.ledBy = null; a.transit = false;
       if (i >= 0 && exOf[i] >= 0) { a.ex = exOf[i]; a.loose = false; return true; }
       // a fence went up right on top of it: step onto the exhibit side
-      const n = i >= 0 && isFence(S.tiles[i]) ? neighbors(i).find(j => exOf[j] >= 0 && ((S.tiles[j] === TANK) === AQUATIC.has(a.sp))) : undefined;
+      const n = i >= 0 && isFence(S.tiles[i]) ? neighbors(i).find(j => exOf[j] >= 0 && canBeOn(a.sp, S.tiles[j])) : undefined;
       if (n !== undefined) { const c = center(n); a.x = c.x; a.y = c.y; a.ex = exOf[n]; a.path = []; a.loose = false; return true; }
-      if (AQUATIC.has(a.sp)) { log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} had no tank left and was sent to another zoo.`); return false; }
+      if (AQUATIC.has(a.sp)) { log(`${a.name} the ${lowName(Z.SPECIES[a.sp])} had no tank left and was sent to another zoo.`); return false; }
       if (!a.loose) {
         a.loose = true; a.ex = -1; a.path = []; a.act = null; a.wait = 0.5;
-        log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} got out! A keeper will lead it back to an exhibit.`);
+        log(`${a.name} the ${lowName(Z.SPECIES[a.sp])} got out! A keeper will lead it back to an exhibit.`);
       }
       return true;
     });
@@ -378,6 +415,7 @@
       const list = S.animals.filter(a => a.ex === E.id && !a.loose);
       const sp = a => SPEC[a.sp].space * (a.baby ? 0.5 : 1);
       const needLand = list.filter(a => !AQUATIC.has(a.sp)).reduce((s, a) => s + sp(a), 0);
+      const needSwim = list.filter(a => SWIMMERS.has(a.sp)).reduce((s, a) => s + sp(a), 0);
       const needTank = list.filter(a => AQUATIC.has(a.sp)).reduce((s, a) => s + sp(a), 0);
       const need = needLand + needTank;
       const poop = E.tiles.reduce((s, i) => s + (S.poop[i] || 0), 0);
@@ -385,23 +423,29 @@
       E.tiles.forEach(i => { if (S.food[i]) Object.entries(S.food[i]).forEach(([sp, n]) => { food[sp] = (food[sp] || 0) + n; }); });
       const species = new Set(list.map(a => a.sp));
       return { list, need, needLand, needTank, poop, food, species,
-        space: needLand ? Math.min(1, E.landTiles.length / needLand) : 1,
+        space: needLand ? Math.min(1, (E.landTiles.length + E.poolTiles.length * needSwim / needLand) / needLand) : 1,
         spaceTank: needTank ? Math.min(1, E.tankTiles.length / needTank) : 1,
         mixed: [...species].filter(x => SAVANNA.includes(x)).length >= 2 || [...species].filter(x => RAINFOREST_BIRDS.includes(x)).length >= 2 };
     });
   }
 
   const skilledKeeper = () => S.staff.some(s => s.type === 'keeper' && (s.skill || 1) >= SPECIALIST_SKILL);
-  const wantName = w => ({ tree: 'a tree', bush: 'a bush', water: 'a pond', toy: 'a toy', snow: 'a snowy floor', tank: 'an aquarium tank' }[w] || w);
+  const wantName = w => ({ tree: 'a tree', bush: 'a bush', water: 'a pond or swim pool', toy: 'a ball', snow: 'a snowy floor', tank: 'an aquarium tank',
+    post: 'a scratching post', wheel: 'an exercise wheel', perch: 'a perch', climb: 'a climbing frame', buoy: 'a floating buoy', bubbler: 'a bubble curtain', hoop: 'a floating hoop' }[w] || w);
+  // Does exhibit E have want w? Toys are wanted by their exact kind; everything else by type (any tree counts as a tree).
+  const hasWant = (E, w) => ITEMS.includes(w) && KIND[w] === 'toy' ? (E.kinds[w] || 0) > 0 : (E.items[w] || 0) > 0;
   function happinessParts(a, st) {
     const sp = Z.SPECIES[a.sp];
     if (a.loose || !EX[a.ex]) return { wants: 0, have: [], missing: sp.wants, space: 1, food: 1 - clamp((a.hunger - 30) / 70, 0, 1), clean: 1, social: 1, fun: 0, loose: true, notes: [] };
     const E = EX[a.ex], x = st[a.ex], aq = AQUATIC.has(a.sp);
-    const have = sp.wants.filter(w => E.items[w] > 0);
+    const have = sp.wants.filter(w => hasWant(E, w));
     const fav = (FAVORITE[a.sp] || []).filter(k => E.kinds[k]);
     const notes = [];
     if (fav.length) notes.push(`Loves its ${fav.map(k => ITEM_NAME[k]).join(' and ')}`);
     if (x.mixed && SAVANNA.includes(a.sp)) notes.push('Enjoys sharing with other savanna animals');
+    const swimPool = SWIMMERS.has(a.sp) && E.poolTiles.length >= POOL_MIN;
+    if (swimPool) notes.push('Loves its swim pool');
+    else if (SWIMMERS.has(a.sp)) notes.push(`Would love a swim pool (${POOL_MIN} or more tiles)`);
     if (FLYERS.has(a.sp) && !E.aviary) notes.push('Needs an aviary (aviary mesh all the way around)');
     if (x.mixed && RAINFOREST_BIRDS.includes(a.sp) && x.species.size > 1) notes.push('Enjoys sharing with other rainforest birds');
     if (SPECIALIST.has(a.sp) && !skilledKeeper()) notes.push(`Needs a keeper trained to skill ${SPECIALIST_SKILL} or more`);
@@ -419,12 +463,12 @@
       if (n > soc.alone) { social = soc.alone / n; notes.push(`Crowded. ${capital(plural(a.sp))} prefer to live ${soc.alone === 1 ? 'alone' : 'alone or in pairs'}`); }
     }
     return {
-      wants: have.length / sp.wants.length, have, missing: sp.wants.filter(w => !E.items[w]),
+      wants: have.length / sp.wants.length, have, missing: sp.wants.filter(w => !hasWant(E, w)),
       space: aq ? x.spaceTank * x.spaceTank : x.space,          // tank animals suffer much more from crowding
       food: 1 - clamp((a.hunger - 30) / 70, 0, 1),
       clean: Math.max(0, 1 - x.poop / Math.max(3, E.tiles.length * 0.15)),
       social, fun: a.fun || 0, aq, notes, lonely: orcas < 2,
-      bonus: (fav.length ? 5 : 0) + (x.mixed && (SAVANNA.includes(a.sp) || RAINFOREST_BIRDS.includes(a.sp)) ? 5 : 0),
+      bonus: (fav.length ? 5 : 0) + (swimPool ? 4 : 0) + (x.mixed && (SAVANNA.includes(a.sp) || RAINFOREST_BIRDS.includes(a.sp)) ? 5 : 0),
       grounded: FLYERS.has(a.sp) && !E.aviary,
     };
   }
@@ -438,11 +482,168 @@
   };
 
   const foodTileFor = a => {
-    const aq = AQUATIC.has(a.sp), mine = i => exOf[i] === a.ex && ((S.tiles[i] === TANK) === aq), here = tileAt(a.x, a.y);
+    const mine = i => exOf[i] === a.ex && canBeOn(a.sp, S.tiles[i]), here = tileAt(a.x, a.y);
     const piles = EX[a.ex].tiles.filter(i => S.food[i] && S.food[i][a.sp] > 0 && mine(i));
     return piles.find(p => p === here || bfs(here, mine, j => j === p));
   };
   const toyPlay = {};           // toy tile -> clock time its ball stops rolling (not saved)
+  // ---------- effects ----------
+  // Short-lived particles for animal behaviors and toys (rope fibers, splashes, dust, fire...). Not saved.
+  let fx = [];
+  function puff(kind, x, y, o = {}) { if (fx.length < 600) fx.push(Object.assign({ kind, x, y, vx: 0, vy: 0, g: 0, t: 0, life: 1, r: 2, rot: 0, dir: 1 }, o)); }
+  function splash(x, y, k = 1) {
+    puff('ring', x, y, { life: 0.9, r: 6 * k }); puff('ring', x, y, { life: 1.2, r: 3 * k, t: -0.15 });
+    for (let n = 0; n < 7 * k; n++) puff('drop', x + (Math.random() - 0.5) * 8 * k, y - 2, { vx: (Math.random() - 0.5) * 50 * k, vy: -40 - Math.random() * 40 * k, g: 160, life: 0.7, r: 1.2 + Math.random() });
+  }
+  function updateFx(dt) { fx = fx.filter(p => { p.t += dt; if (p.t < 0) return true; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.rot += (p.spinV || 0) * dt; return p.t < p.life; }); }
+  const tintOf = (gray, color, layer = 'animals') => A.mix(gray, color, A.tint[layer] || 0);
+  const FX_DRAW = {
+    fiber(p, u) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + u * 6); ctx.globalAlpha = 1 - u; ctx.strokeStyle = tintOf('#8a8a8a', '#c8a86a', 'built'); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-2.5, 0); ctx.lineTo(2.5, 0.5); ctx.stroke(); ctx.restore(); },
+    bubble(p, u) { ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x + Math.sin(p.t * 8) * 1.2, p.y, p.r * (1 + u * 0.5), 0, Math.PI * 2); ctx.stroke(); },
+    drop(p, u) { ctx.globalAlpha = 1 - u * 0.6; ctx.fillStyle = tintOf('#d0d0d0', '#8cc8f0', 'water'); ctx.strokeStyle = '#555'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); },
+    ring(p, u) { ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1 + u * 2.4), p.r * 0.35 * (1 + u * 2.4), 0, 0, Math.PI * 2); ctx.stroke(); },
+    quake(p, u) { ctx.globalAlpha = (1 - u) * 0.8; ctx.strokeStyle = '#333'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * (1 + u * 3), p.r * 0.3 * (1 + u * 3), 0, 0, Math.PI * 2); ctx.stroke(); },
+    dust(p, u) { ctx.globalAlpha = (1 - u) * 0.7; ctx.fillStyle = tintOf('#d6d6d6', '#d8c7a0', 'plants'); ctx.strokeStyle = '#999'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + u * 1.6), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); },
+    snow(p, u) { ctx.globalAlpha = 1 - u; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#999'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); },
+    mud(p, u) { ctx.globalAlpha = 1 - u * 0.5; ctx.fillStyle = tintOf('#555', '#6b4a2b', 'plants'); ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.8, p.rot, 0, Math.PI * 2); ctx.fill(); },
+    leaf(p, u) { ctx.save(); ctx.translate(p.x + Math.sin(p.t * 4) * 3, p.y); ctx.rotate(Math.sin(p.t * 5) * 0.8); ctx.globalAlpha = 1 - u * 0.5; ctx.fillStyle = tintOf('#ffffff', '#5aa548', 'plants'); ctx.strokeStyle = '#111'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.ellipse(0, 0, 2.6, 1.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore(); },
+    feather(p, u) { ctx.save(); ctx.translate(p.x + Math.sin(p.t * 3) * 4, p.y); ctx.rotate(Math.sin(p.t * 3) * 0.9); ctx.globalAlpha = 1 - u * 0.6; ctx.fillStyle = p.color ? tintOf('#ffffff', p.color) : '#fff'; ctx.strokeStyle = '#555'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(-3, 0); ctx.quadraticCurveTo(0, -2, 3, 0); ctx.quadraticCurveTo(0, 1.6, -3, 0); ctx.fill(); ctx.stroke(); ctx.restore(); },
+    spark(p, u) { const r = p.r * (u < 0.5 ? u * 2 : 2 - u * 2); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = tintOf('#ffffff', '#ffe066'); ctx.strokeStyle = '#555'; ctx.lineWidth = 0.6; ctx.beginPath();
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? r * 0.35 : r; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); },
+    fire(p, u) { const r = p.r * (0.6 + u * 1.2); ctx.globalAlpha = 1 - u * u;
+      ctx.fillStyle = tintOf(u < 0.3 ? '#ffffff' : u < 0.6 ? '#c8c8c8' : '#888888', u < 0.3 ? '#fff3a0' : u < 0.6 ? '#ff9a1f' : '#d63a12');
+      ctx.strokeStyle = 'rgba(17,17,17,0.6)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); },
+    smoke(p, u) { ctx.globalAlpha = (1 - u) * 0.5; ctx.fillStyle = '#9a9a9a'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + u * 2), 0, Math.PI * 2); ctx.fill(); },
+    arc(p, u) { ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#111'; ctx.lineWidth = p.w || 1.6; const r = p.r + u * (p.grow || 22);
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, p.dir > 0 ? -0.7 : Math.PI - 0.7, p.dir > 0 ? 0.7 : Math.PI + 0.7); ctx.stroke(); },
+    text(p, u) { ctx.globalAlpha = u > 0.75 ? (1 - u) * 4 : 1; ctx.font = `bold ${p.size || 8}px "Courier New", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = ctx.measureText(p.s).width + 8, y = p.y - u * 6;
+      if (p.bubble) { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.rect(p.x - w / 2, y - 7, w, 13); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(p.x - 2, y + 6); ctx.lineTo(p.x - p.dir * 4, y + 11); ctx.lineTo(p.x + 3, y + 6); ctx.fill(); ctx.stroke(); }
+      ctx.fillStyle = '#111'; ctx.fillText(p.s, p.x, y); },
+    fruit(p, u) { ctx.fillStyle = tintOf('#555555', '#e0442a'); ctx.strokeStyle = '#111'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); },
+    tongue(p, u) { const k = Math.sin(Math.PI * Math.min(1, u * 1.2)); ctx.strokeStyle = tintOf('#333', '#c2304a'); ctx.lineWidth = 1; ctx.beginPath();
+      ctx.moveTo(p.x, p.y); const ex = p.x + p.dir * 7 * k; ctx.lineTo(ex, p.y); ctx.lineTo(ex + p.dir * 2.5 * k, p.y - 1.5 * k); ctx.moveTo(ex, p.y); ctx.lineTo(ex + p.dir * 2.5 * k, p.y + 1.5 * k); ctx.stroke(); },
+    gaze(p, u) { ctx.globalAlpha = (1 - u) * 0.9; ctx.strokeStyle = tintOf('#555555', '#8be04a'); ctx.lineWidth = 1.4; for (let k = 0; k < 3; k++) { const r = 3 + ((u * 3 + k / 3) % 1) * 18; ctx.beginPath();
+      ctx.arc(p.x, p.y, r, p.dir > 0 ? -0.5 : Math.PI - 0.5, p.dir > 0 ? 0.5 : Math.PI + 0.5); ctx.stroke(); } },
+  };
+  function drawFx() { fx.forEach(p => { if (p.t < 0) return; ctx.save(); FX_DRAW[p.kind](p, p.t / p.life); ctx.restore(); }); }
+
+  const PLAY_TIME = { wheel: 5, post: 4, toy: 4, perch: 6, climb: 6, buoy: 6, bubbler: 7, hoop: 4.5 };
+
+  // ---------- signature behaviors ----------
+  // Every species has one thing it does now and then that no other animal does. Each entry: label (shown in the
+  // animal's panel), dur (seconds), every (about how often, in seconds), move (speed boost if it runs while moving),
+  // and step(a, u, dt, h) called each tick with u going 0 -> 1. h has the mouth position and helpers.
+  const FLY_HEIGHT = 44;        // how high the dragon flies (world px)
+  const bell = (u, k = 5) => Math.max(0, Math.min(1, u * k, (1 - u) * k));
+  const once = (a, key, test) => { if (test && !a.beh[key]) { a.beh[key] = true; return true; } return false; };
+  const BEH = {
+    lion: { label: 'Roaring', dur: 2.2, every: 70, step(a, u, dt, h) {
+      a.tilt = -0.14 * bell(u); if (once(a, 'txt', u > 0.1)) h.text('ROAR!', 9);
+      if (Math.random() < dt * 5 && u > 0.1 && u < 0.85) puff('arc', h.mx + h.f * 3, h.my, { dir: h.f, r: 3, life: 0.8, grow: 26, w: 1.8 }); } },
+    elephant: { label: 'Spraying water from its trunk', dur: 2.6, every: 80, step(a, u, dt, h) {
+      if (u > 0.15 && u < 0.85) for (let k = 0; k < 2; k++) if (Math.random() < dt * 14)
+        puff('drop', h.mx, h.my - 20 * h.sc, { vx: -h.f * (20 + Math.random() * 45), vy: -120 - Math.random() * 40, g: 200, life: 1, r: 1 + Math.random() }); } },
+    giraffe: { label: 'Nibbling leaves from high up', dur: 3.2, every: 75, step(a, u, dt, h) {
+      a.tilt = Math.sin(u * 18) * 0.02; if (Math.random() < dt * 5) puff('leaf', h.mx + (Math.random() - 0.5) * 6, h.my, { vy: 10, g: 6, vx: (Math.random() - 0.5) * 10, life: 2.4 }); } },
+    zebra: { label: 'Rolling in a dust bath', dur: 3, every: 90, step(a, u, dt, h) {
+      a.spin = Math.sin(u * Math.PI * 4) * 0.6 * bell(u, 6); a.sink2 = 0;
+      if (Math.random() < dt * 9) puff('dust', a.x + (Math.random() - 0.5) * 30 * h.sc * 3, a.y - 2, { vy: -10, vx: (Math.random() - 0.5) * 20, life: 1, r: 3 }); } },
+    penguin: { label: 'Belly-sliding', dur: 1.8, every: 60, move: 5, step(a, u, dt, h) {
+      a.tilt = 1.3 * bell(u, 6); if (Math.random() < dt * 12) puff('snow', a.x - h.f * 6, a.y - 2, { vx: -h.f * 25, vy: -20, g: 60, life: 0.6, r: 1.4 }); } },
+    bear: { label: 'Standing up on its hind legs', dur: 2.8, every: 80, step(a, u, dt, h) { a.tilt = -0.8 * bell(u, 4); } },
+    monkey: { label: 'Doing a backflip', dur: 1.1, every: 50, step(a, u, dt, h) {
+      a.lift = Math.sin(Math.PI * u) * 26; a.spin = -Math.PI * 2 * Math.min(1, u * 1.15); if (once(a, 'land', u > 0.95)) puff('dust', a.x, a.y - 1, { life: 0.6, r: 3 }); } },
+    flamingo: { label: 'Preening its feathers', dur: 3, every: 70, step(a, u, dt, h) {
+      a.tilt = Math.sin(u * 20) * 0.03; if (Math.random() < dt * 3) puff('feather', a.x + (Math.random() - 0.5) * 8, a.y - 22 * h.sc * 3, { vy: 8, g: 4, vx: (Math.random() - 0.5) * 8, life: 2.2, color: '#f792ab' }); } },
+    snowleopard: { label: 'Pouncing', dur: 1.1, every: 65, move: 4, step(a, u, dt, h) {
+      a.lift = Math.sin(Math.PI * u) * 18; a.tilt = (u - 0.5) * 0.6; if (once(a, 'land', u > 0.92)) for (let k = 0; k < 6; k++) puff('snow', a.x + (Math.random() - 0.5) * 16, a.y - 2, { vx: (Math.random() - 0.5) * 40, vy: -30, g: 80, life: 0.7, r: 1.5 }); } },
+    ostrich: { label: 'Sprinting', dur: 1.8, every: 55, move: 4, step(a, u, dt, h) { if (Math.random() < dt * 14) puff('dust', a.x - h.f * 8, a.y - 1, { vx: -h.f * 15, vy: -6, life: 0.8, r: 2.5 }); } },
+    seahawk: { label: 'Diving for a fish', dur: 2.4, every: 60, step(a, u, dt, h) {
+      a.moving = true; a.phase += dt * 6; a.lift = u < 0.6 ? 34 * Math.sin(u / 0.6 * Math.PI / 2) : 34 * (1 - (u - 0.6) / 0.4) ** 2; a.tilt = u > 0.6 && u < 0.97 ? 0.9 : 0;
+      if (once(a, 'splash', u > 0.97)) splash(a.x + h.f * 6, a.y, 0.8); } },
+    hippo: { label: 'Snorting a spray of water', dur: 1.6, every: 70, step(a, u, dt, h) {
+      if (u > 0.2 && u < 0.7 && Math.random() < dt * 22) puff('drop', h.mx + (Math.random() - 0.5) * 3, h.my - 2, { vx: (Math.random() - 0.5) * 20, vy: -70 - Math.random() * 30, g: 200, life: 0.8, r: 1.1 }); } },
+    rhino: { label: 'Scraping the ground with its horn', dur: 2.2, every: 75, step(a, u, dt, h) {
+      a.tilt = (0.16 + Math.sin(u * 30) * 0.05) * bell(u); if (Math.random() < dt * 8) puff('mud', h.mx, a.y - 3, { vx: -h.f * (20 + Math.random() * 30), vy: -40, g: 140, life: 0.7, r: 1.6, rot: Math.random() * 3 }); } },
+    anaconda: { label: 'Tasting the air with its tongue', dur: 2.4, every: 50, step(a, u, dt, h) {
+      if (once(a, 't' + Math.floor(u * 4), true)) puff('tongue', h.mx, h.my, { dir: h.f, life: 0.45 }); } },
+    polarbear: { label: 'Rolling in the snow', dur: 2.4, every: 75, step(a, u, dt, h) {
+      a.spin = Math.PI * 2 * Math.min(1, Math.max(0, (u - 0.1) / 0.8)); if (Math.random() < dt * 10) puff('snow', a.x + (Math.random() - 0.5) * 30, a.y - 4, { vx: (Math.random() - 0.5) * 30, vy: -25, g: 60, life: 0.8, r: 1.6 }); } },
+    shark: { label: 'Making a sudden dash', dur: 1.5, every: 45, move: 3, step(a, u, dt, h) { if (Math.random() < dt * 14) puff('bubble', a.x - h.f * 14, a.y - 10, { vy: -14, life: 1, r: 1.2 + Math.random() }); } },
+    orca: { label: 'Spyhopping (poking its head up to look around)', dur: 2.8, every: 70, step(a, u, dt, h) {
+      a.tilt = -1.25 * bell(u, 4); a.lift = 12 * bell(u, 4); if (once(a, 's1', u > 0.05)) splash(a.x, a.y, 1); if (once(a, 's2', u > 0.9)) splash(a.x, a.y, 1.3); } },
+    dolphin: { label: 'Leaping and spinning', dur: 1.5, every: 45, step(a, u, dt, h) {
+      a.lift = Math.sin(Math.PI * u) * 28; a.spin = Math.PI * 2 * Math.max(0, Math.min(1, (u - 0.2) / 0.6)) * -1; a.moving = true;
+      if (once(a, 's1', u > 0.02)) splash(a.x, a.y, 0.8); if (once(a, 's2', u > 0.96)) splash(a.x, a.y, 1.1); } },
+    parrot: { label: 'Talking', dur: 2.2, every: 50, step(a, u, dt, h) {
+      if (once(a, 'say', true)) h.text(['Hello!', 'Pretty bird!', 'Hi there!', 'Good morning!', 'Whatcha doing?'][Math.floor(Math.random() * 5)], 8, true); } },
+    toucan: { label: 'Tossing a berry and catching it', dur: 1.4, every: 50, step(a, u, dt, h) {
+      if (once(a, 'toss', true)) puff('fruit', h.mx, h.my, { vx: -h.f * 6, vy: -75, g: 165, life: 0.9, r: 1.8 }); a.tilt = -0.25 * bell(u, 3); } },
+    owl: { label: 'Turning its head and hooting', dur: 2.2, every: 55, step(a, u, dt, h) {
+      if (once(a, 'f1', u > 0.25)) a.facing = -a.facing; if (once(a, 'f2', u > 0.7)) a.facing = -a.facing; if (once(a, 'hoo', u > 0.45)) h.text('Hoo-hoo', 7); } },
+    eagle: { label: 'Soaring', dur: 4, every: 60, step(a, u, dt, h) {
+      a.moving = true; a.phase += dt * 3; a.lift = 42 * bell(u, 4); a.ox = Math.sin(u * Math.PI * 2) * 14; } },
+    triceratops: { label: 'Charging', dur: 1.6, every: 70, move: 3, step(a, u, dt, h) {
+      a.tilt = 0.14 * bell(u); if (Math.random() < dt * 14) puff('dust', a.x - h.f * 10, a.y - 2, { vx: -h.f * 20, vy: -8, life: 0.9, r: 3 }); } },
+    basilisk: { label: 'Fixing everyone with its stare', dur: 2.2, every: 60, step(a, u, dt, h) {
+      if (once(a, 'g', u > 0.1)) puff('gaze', h.mx, h.my - 2, { dir: h.f, life: 1.8 }); } },
+    unicorn: { label: 'Rearing up in a shower of sparkles', dur: 2.4, every: 70, step(a, u, dt, h) {
+      a.tilt = -0.55 * bell(u, 4); if (u > 0.15 && u < 0.85 && Math.random() < dt * 12) puff('spark', h.mx + (Math.random() - 0.5) * 18, h.my + (Math.random() - 0.5) * 18, { vy: -8, life: 0.9, r: 3.5, rot: Math.random() }); } },
+    trex: { label: 'Stomping and roaring', dur: 2.6, every: 80, step(a, u, dt, h) {
+      a.roar = bell(u, 4); a.tilt = -0.06 * bell(u);
+      if (once(a, 'q1', u > 0.1)) puff('quake', a.x, a.y, { life: 1, r: 10 }); if (once(a, 'q2', u > 0.35)) puff('quake', a.x, a.y, { life: 1, r: 10 });
+      if (once(a, 'txt', u > 0.4)) h.text('ROAAAR!', 11);
+      if (u > 0.35 && u < 0.9 && Math.random() < dt * 5) puff('arc', h.mx + h.f * 4, h.my, { dir: h.f, r: 5, life: 0.9, grow: 44, w: 2.6 }); } },
+    raptor: { label: 'Leaping, then fluffing its feathers', dur: 1.6, every: 50, move: 4, step(a, u, dt, h) {
+      a.lift = u < 0.6 ? Math.sin(Math.PI * u / 0.6) * 20 : 0; a.roar = u > 0.6 ? bell((u - 0.6) / 0.4) * 0.6 : 0;
+      if (once(a, 'f', u > 0.62)) for (let k = 0; k < 5; k++) puff('feather', a.x + (Math.random() - 0.5) * 16, a.y - 16, { vy: -10, g: 20, vx: (Math.random() - 0.5) * 30, life: 1.4, color: '#b88c53' }); } },
+    titanosaur: { label: 'Rearing up to reach the treetops', dur: 3.6, every: 90, step(a, u, dt, h) {
+      a.tilt = -0.32 * bell(u, 3); if (once(a, 'q', u > 0.93)) { puff('quake', a.x + h.f * 20 * h.sc * 3, a.y, { life: 1.2, r: 14 }); puff('quake', a.x + h.f * 20 * h.sc * 3, a.y, { life: 1.4, r: 8, t: -0.2 }); } } },
+    dragon: { label: 'Breathing fire', dur: 2.2, every: 45, step(a, u, dt, h) {
+      a.fire = bell(u, 6);
+      if (u > 0.12 && u < 0.88) for (let k = 0; k < 3; k++) if (Math.random() < dt * 30)
+        puff('fire', h.mx + h.f * 2, h.my + 1, { vx: h.f * (90 + Math.random() * 60), vy: (Math.random() - 0.5) * 30, g: -20, life: 0.55 + Math.random() * 0.2, r: 2.5 + Math.random() * 2 });
+      if (Math.random() < dt * 6) puff('smoke', h.mx + h.f * 30, h.my - 6, { vy: -14, vx: h.f * 10, life: 1.2, r: 3 }); } },
+  };
+  // Where an animal's mouth is right now, in world pixels (follows facing, size, lean and lift).
+  function behHelpers(a) {
+    const sc = WORLD_SCALE * (a.baby ? Z.SPECIES[a.sp].babyScale : 1), f = a.facing || 1, M = Z.MOUTH[a.sp] || [30, -40];
+    let mx = M[0] * sc, my = M[1] * sc;
+    const tilt = (a.tilt || 0) * f;
+    if (tilt) { const px = -f * (BODY_W[a.sp] || 40) * sc * 0.45, x0 = f * mx - px, c = Math.cos(tilt), s2 = Math.sin(tilt); const nx = px + x0 * c - my * s2, ny = x0 * s2 + my * c; mx = nx * f; my = ny; }
+    const lift = (a.hop || 0) + (a.lift || 0) + (a.fly || 0) * FLY_HEIGHT - (a.sink || 0) * (SWIM_DEPTH[a.sp] || 0) * sc;
+    return { sc, f, mx: a.x + (a.ox || 0) + f * mx, my: a.y - lift + my,
+      text: (str, size, bubble) => puff('text', a.x + f * M[0] * sc, a.y - lift + M[1] * sc - 12, { s: str, size, bubble, dir: f, life: 1.8 }) };
+  }
+  function startBehavior(a, forced) {
+    const B = BEH[a.sp]; if (!B) return;
+    a.beh = { t: 0, dur: B.dur, speed: B.move || 0 }; a.view = 'side';
+    if (B.move) {
+      // a short burst along a straight-ish route inside the exhibit
+      const here = tileAt(a.x, a.y), mine = i => exOf[i] === a.ex && canBeOn(a.sp, S.tiles[i]);
+      const far = EX[a.ex] ? EX[a.ex].tiles.filter(mine) : [];
+      const pick = far.filter(i => Math.abs(tx(i) - tx(here)) + Math.abs(ty(i) - ty(here)) >= 2 && Math.abs(tx(i) - tx(here)) + Math.abs(ty(i) - ty(here)) <= 4);
+      const goal = pick.length ? pick[Math.floor(Math.random() * pick.length)] : -1;
+      const r = goal >= 0 ? bfs(here, mine, i => i === goal) : null;
+      if (r && r.length) { a.path = toPoints(r); a.wait = 0; } else a.beh.speed = 0;
+    }
+  }
+  // Runs the current behavior. Returns true while it holds the animal still.
+  function runBehavior(a, dt) {
+    const B = BEH[a.sp], b = a.beh;
+    b.t += dt; const u = Math.min(1, b.t / b.dur);
+    B.step(a, u, dt, behHelpers(a));
+    if (u >= 1 || (b.speed && !a.path.length && b.t > 0.3)) {
+      a.beh = null; a.tilt = 0; a.spin = 0; a.lift = 0; a.hop = 0; a.ox = 0; a.roar = 0; a.fire = 0;
+      if (!a.path.length) a.wait = 1 + Math.random() * 2;
+      return true;
+    }
+    return !b.speed;
+  }
 
   function updateAnimal(a, dt, st) {
     a.hunger = Math.min(100, a.hunger + dt * 100 / (DAY * 2) * (HUNGER_RATE[a.sp] || 1));
@@ -450,14 +651,16 @@
     a.fun = Math.max(0, (a.fun || 0) - dt / DAY);
     if (a.baby && a.age >= GROW_DAYS) {
       a.baby = false;
-      log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} is all grown up.`);
+      log(`${a.name} the ${lowName(Z.SPECIES[a.sp])} is all grown up.`);
     }
     if (Math.random() < dt * (a.baby ? 0.5 : 1.1) / DAY) {
       const i = tileAt(a.x, a.y);
-      if (i >= 0 && exOf[i] >= 0) S.poop[i] = Math.min(6, (S.poop[i] || 0) + 1);
+      if (i >= 0 && exOf[i] >= 0 && S.tiles[i] !== POOL) S.poop[i] = Math.min(6, (S.poop[i] || 0) + 1);
     }
     const target = happyTarget(happinessParts(a, st));
     a.happy += (target - a.happy) * Math.min(1, dt * 0.25);
+    const inPool = SWIMMERS.has(a.sp) && !a.loose && S.tiles[tileAt(a.x, a.y)] === POOL;
+    a.sink = (a.sink || 0) + ((inPool ? 1 : 0) - (a.sink || 0)) * Math.min(1, dt * 5);
     if (a.transit && (a.ledBy == null || !S.staff.some(s => s.id === a.ledBy))) a.transit = false;   // its keeper was let go
     if (a.loose || a.transit || !EX[a.ex]) { updateLoose(a, dt); return; }
 
@@ -475,22 +678,63 @@
           a.act = null; a.wait = 1 + Math.random() * 2;
         }
       } else {
+        const u = 1 - a.actT / (a.playLen || 4);                               // 0 -> 1 through the play session
         if (a.toy === 'wheel') { a.moving = true; a.phase += dt * 9; a.hop = 2; a.view = 'side'; }            // running in the wheel
-        else if (a.toy === 'post') { a.moving = false; a.hop = Math.abs(Math.sin(a.actT * 12)) * 1.5; a.view = 'side'; }   // a good scratch
+        else if (a.toy === 'post') {
+          // reared up against the post, raking it with alternating paws; bits of rope fly off
+          const ease = Math.min(1, u * 6, (1 - u) * 6), rake = Math.sin(a.actT * 14);
+          a.moving = false; a.tilt = -0.42 * ease + rake * 0.04 * ease; a.hop = Math.max(0, rake) * 1.5 * ease; a.phase += dt * 6 * ease;
+          if (ease > 0.8 && Math.random() < dt * 7) {
+            const c = center(a.toyTile);
+            puff('fiber', c.x + (Math.random() - 0.5) * 6, c.y + 9 - 10 - Math.random() * 14, { vx: -a.facing * (10 + Math.random() * 20), vy: -12 - Math.random() * 10, g: 60, life: 0.8, rot: Math.random() * 3 });
+          }
+        }
+        else if (a.toy === 'perch') { a.moving = false; a.lift = 20; a.hop = Math.max(0, Math.sin(a.actT * 3)) * 1.2; if (Math.random() < dt * 0.6) a.facing = -a.facing; }
+        else if (a.toy === 'climb') {
+          // climb up the rungs, hang at the top, climb back down
+          const up = Math.sin(Math.PI * Math.min(1, u * 1.15));
+          a.lift = 24 * up; a.moving = up > 0.08 && up < 0.97; a.phase += dt * (a.moving ? 8 : 2); a.playView = 'back';
+          a.x = a.x0 + 3 + Math.sin(a.actT * 2) * (up > 0.95 ? 3 : 0.5);
+        }
+        else if (a.toy === 'buoy') { a.moving = true; a.phase += dt * 4; const k = Math.sin(a.actT * 1.6); a.facing = Math.cos(a.actT * 1.6) > 0 ? 1 : -1; a.x = a.x0 + k * 14 - a.facing * 12; }
+        else if (a.toy === 'bubbler') {
+          // glide back and forth through the bubble wall
+          a.moving = true; a.phase += dt * 3; const k = Math.sin(a.actT * 1.1); a.facing = Math.cos(a.actT * 1.1) > 0 ? 1 : -1; a.x = a.x0 + k * 22; a.y = a.y0 + 4;
+          if (Math.random() < dt * 6) puff('bubble', a.x + (Math.random() - 0.5) * 14, a.y - 6, { vy: -16, life: 1.2, r: 1 + Math.random() * 1.5 });
+        }
+        else if (a.toy === 'hoop') {
+          // leap through the hoop, splash down, turn around and do it again
+          const k = (u * 2) % 1; a.moving = true; a.phase += dt * 5;
+          const dir = u < 0.5 ? 1 : -1; a.facing = dir; a.x = a.x0 + dir * (k * 56 - 28); a.lift = Math.sin(Math.PI * k) * 26; a.tilt = (0.5 - k) * -0.9;
+          if (k > 0.94 && !a.splashed) { a.splashed = true; splash(a.x, a.y, 1); } else if (k < 0.9) a.splashed = false;
+        }
         else { a.moving = true; a.phase += dt * 7; a.facing = Math.sin(a.actT * 4) > 0 ? 1 : -1; a.hop = Math.abs(Math.sin(a.actT * 7)) * 3; }
-        if (a.actT <= 0) { a.act = null; a.hop = 0; a.fun = 1; a.wait = 1 + Math.random() * 2; }
+        if (a.actT <= 0) {
+          if (a.toy === 'perch' || a.toy === 'climb' || a.toy === 'post') { const c = center(a.toyTile); a.y = c.y + 2; }
+          if (['buoy', 'bubbler', 'hoop'].includes(a.toy)) { a.x = a.x0; a.y = a.y0; }
+          a.act = null; a.hop = 0; a.lift = 0; a.tilt = 0; a.playView = null; a.fun = 1; a.wait = 1 + Math.random() * 2;
+        }
       }
       return;
     }
-    if (a.wait > 0) { a.wait -= dt; a.moving = false; return; }
+    if (a.sp === 'dragon') {
+      // take off for some walks, glide around the exhibit, then land; wings keep beating while in the air
+      const want = a.flyWant && (a.path.length || a.beh) ? 1 : 0;
+      a.fly = (a.fly || 0) + (want - (a.fly || 0)) * Math.min(1, dt * 1.4);
+      if (a.fly > 0.3) { a.moving = true; a.phase += dt * 5; }
+      if (!a.beh && a.fly > 0.7 && Math.random() < dt / 14) { startBehavior(a); return; }     // fire from the air
+    }
+    if (a.beh) { if (runBehavior(a, dt)) return; }
+    else if (a.wait > 0 && BEH[a.sp] && Math.random() < dt / BEH[a.sp].every) { startBehavior(a); return; }
+    if (a.wait > 0 && !a.beh) { a.wait -= dt; a.moving = false; return; }
     if (!a.path.length) {
       const E = EX[a.ex], here = tileAt(a.x, a.y);
       // land animals stay on land, tank animals stay in the water
-      const aq = AQUATIC.has(a.sp), mine = i => exOf[i] === a.ex && ((S.tiles[i] === TANK) === aq);
+      const mine = i => exOf[i] === a.ex && canBeOn(a.sp, S.tiles[i]);
       const pickOf = list => list[Math.floor(Math.random() * list.length)];
       let goalTile = -1; a.goal = null;
-      const ft = a.hunger > 35 ? foodTileFor(a) : undefined;
-      const toys = E.items.toy && a.hunger < 70 && Math.random() < 0.3 ? E.tiles.filter(i => KIND[S.items[i]] === 'toy' && mine(i)) : [];
+      const ft = a.hunger > 28 ? foodTileFor(a) : undefined;
+      const toys = E.items.toy && a.hunger < 70 && Math.random() < 0.3 ? E.tiles.filter(i => KIND[S.items[i]] === 'toy' && canUseToy(a.sp, S.items[i]) && mine(i)) : [];
       if (ft !== undefined && mine(ft)) { goalTile = ft; a.goal = 'food'; }
       else if (toys.length) { goalTile = pickOf(toys); a.goal = 'toy'; }
       else {
@@ -498,14 +742,15 @@
         goalTile = spots.length ? pickOf(spots) : all.length ? pickOf(all) : here;
       }
       a.goalTile = goalTile;
+      if (a.sp === 'dragon') a.flyWant = !a.goal && !a.baby && Math.random() < 0.45;
       if (goalTile === here && a.goal) { startAct(a, here); return; }
       const route = bfs(here, mine(here) ? mine : (i => exOf[i] === a.ex), i => i === goalTile);
       // wandering walks just the first few steps of the route, one tile at a time, so it never cuts across a fence
-      if (route && route.length) a.path = toPoints(a.goal ? route : route.slice(0, 5), a.goal ? 10 : 14);
+      if (route && route.length) a.path = toPoints(a.goal || a.flyWant ? route : route.slice(0, 5), a.goal ? 10 : 14);
       a.wait = route && route.length ? 0 : 1 + Math.random() * 2;
       if (!a.path.length) return;
     }
-    const moved = stepAlong(a, SPEC[a.sp].speed * (a.baby ? 0.85 : 1) * dt);
+    const moved = stepAlong(a, SPEC[a.sp].speed * (a.baby ? 0.85 : 1) * (a.beh && a.beh.speed ? a.beh.speed : 1) * (a.fly > 0.5 ? 1.8 : 1) * dt);
     a.phase += moved * (a.baby ? 0.75 : 0.5);
     a.moving = moved > 0;
     if (!a.path.length) {
@@ -547,7 +792,7 @@
       const x = st[id];
       if ([...x.species].some(o => !canShare(o, a.sp))) return;
       const room = E.landTiles.length - x.needLand - SPEC[a.sp].space * (a.baby ? 0.5 : 1);
-      const score = (x.species.has(a.sp) ? 50 : 0) + (room >= 0 ? 100 : room) + Z.SPECIES[a.sp].wants.filter(w => E.items[w]).length * 5;
+      const score = (x.species.has(a.sp) ? 50 : 0) + (room >= 0 ? 100 : room) + Z.SPECIES[a.sp].wants.filter(w => hasWant(E, w)).length * 5;
       if (score > bestScore) { bestScore = score; best = id; }
     });
     return best;
@@ -556,10 +801,15 @@
   function startAct(a, i) {
     if (a.goal === 'food' && S.food[i] && S.food[i][a.sp] > 0) { a.act = 'eat'; a.actT = 3; a.actTile = i; }
     else if (a.goal === 'toy' && KIND[S.items[i]] === 'toy') {
-      a.toy = S.items[i]; a.act = 'play'; a.actT = a.toy === 'wheel' ? 5 : a.toy === 'post' ? 3.5 : 4; toyPlay[i] = clock + a.actT;
-      const c = center(i);
+      a.toy = S.items[i]; a.act = 'play'; a.actT = PLAY_TIME[a.toy] || 4; a.playLen = a.actT; a.toyTile = i; toyPlay[i] = clock + a.actT;
+      const c = center(i), sc = WORLD_SCALE * (a.baby ? Z.SPECIES[a.sp].babyScale : 1);
+      a.x0 = c.x; a.y0 = c.y;
       if (a.toy === 'wheel') { a.x = c.x; a.y = c.y + 9; }                       // hop on
-      if (a.toy === 'post') { a.facing = c.x >= a.x ? 1 : -1; }
+      if (a.toy === 'post') {                                                     // stand up against the post, front paws on the rope
+        a.facing = c.x >= a.x ? 1 : -1; a.x = c.x - a.facing * (BODY_W[a.sp] || 60) * sc * 0.42; a.y = c.y + 9;
+      }
+      if (a.toy === 'perch') { a.x = c.x; a.y = c.y + 8.5; }                     // land on the crossbar
+      if (a.toy === 'climb') { a.x = c.x + 3; a.y = c.y + 9; }                   // grab the frame
     }
     a.goal = null;
   }
@@ -583,7 +833,7 @@
           const mom = adults[Math.floor(Math.random() * adults.length)];
           const b = makeAnimal(sp, mom.x - 10, mom.y + 2, true); b.ex = id; b.happy = 80;
           S.animals.push(b); S.today.births++; S.totals.births++; S.bornBy[sp] = (S.bornBy[sp] || 0) + 1;
-          log(`A baby ${Z.SPECIES[sp].name.toLowerCase()} named ${b.name} was born!`);
+          log(`A baby ${lowName(Z.SPECIES[sp])} named ${b.name} was born!`);
         }
       });
     });
@@ -626,7 +876,6 @@
       list.forEach(a => { bySp[a.sp] = (bySp[a.sp] || 0) + Z.SPECIES[a.sp].appeal * (a.happy / 100) * (a.baby ? 1.4 : 1); });
       Object.entries(bySp).forEach(([sp, v]) => { if (v > g.best) { g.best = v; g.fav = sp; } });
       g.sights += Math.min(14, Object.values(bySp).reduce((s, v) => s + v, 0) * 0.6) * g.boost;
-      if (EX[eid].signed) { g.extra += 1; g.readSign = true; }
       const avg = list.reduce((s, a) => s + a.happy, 0) / list.length;
       if (avg < 40) { g.sadPen += 8; g.sawSad = list[0].sp; }
       // droppings piling up in an exhibit put guests off
@@ -708,9 +957,8 @@
     if (g.litterSeen >= 8) out.push('Too much litter on the paths');
     if (S.ticket > fairPrice() + 3) out.push('Tickets are pricey');
     else if (S.ticket <= fairPrice() * 0.8) out.push('Great value for the price');
-    if (g.readSign) out.push('Enjoyed reading the exhibit signs');
     if (g.learned) out.push('Learned something new at the education center');
-    if (g.plush) out.push(`Bought a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}!`);
+    if (g.plush) out.push(`Bought a stuffed ${lowName(Z.SPECIES[g.plush])}!`);
     out.forEach(c => { S.comments[c] = (S.comments[c] || 0) + 1; });
   }
 
@@ -895,12 +1143,12 @@
 
   function hire(type) {
     const d = STAFF[type];
-    if (S.money < d.hire) { toast(`Not enough money to hire a ${d.name.toLowerCase()}.`); return; }
+    if (S.money < d.hire) { toast(`Not enough money to hire a ${lowName(d)}.`); return; }
     spend('staff', d.hire);
     const c = center(idx(ENT.x, ENT.y));
     S.staff.push({ id: S.nextId++, type, x: c.x, y: c.y, path: [], phase: 0, facing: 1, workT: 0, state: 'idle', ex: -1, skill: 1,
       name: NAMES[Math.floor(Math.random() * NAMES.length)] });
-    log(`Hired a ${d.name.toLowerCase()}.`);
+    log(`Hired a ${lowName(d)}.`);
     renderPanel();
   }
 
@@ -963,7 +1211,7 @@
   const keeperPass = E => j => S.tiles[j] === PATH || openGround(j) || (exOf[j] === E && S.tiles[j] !== TANK) || (gateOf[j] && gateOf[j].includes(E));
   const anyPass = j => S.tiles[j] !== TANK;                  // last resort: keepers have keys to every gate
   // where a keeper stands to work on an exhibit: on its land, or at the gate of an all-water tank
-  const workSpot = E => j => EX[E] && (EX[E].landTiles.length ? exOf[j] === E && S.tiles[j] !== TANK : isFence(S.tiles[j]) && neighbors(j).some(n => exOf[n] === E));
+  const workSpot = E => j => EX[E] && (EX[E].landTiles.length ? exOf[j] === E && isDry(S.tiles[j]) : isFence(S.tiles[j]) && neighbors(j).some(n => exOf[n] === E));
   const openGround = j => !isFence(S.tiles[j]) && exOf[j] < 0 && S.tiles[j] !== TANK;
   const skillOf = s => s.skill || 1;
   const staffSpeed = s => 38 * (1 + 0.15 * (skillOf(s) - 1));
@@ -1023,7 +1271,7 @@
         if (runaway) {
           const dest = homeFor(runaway);
           if (dest < 0) {
-            if (!runaway.noHome) { runaway.noHome = true; log(`There's no exhibit ${runaway.name} the ${Z.SPECIES[runaway.sp].name.toLowerCase()} can go to. Build one and a keeper will take it there.`); }
+            if (!runaway.noHome) { runaway.noHome = true; log(`There's no exhibit ${runaway.name} the ${lowName(Z.SPECIES[runaway.sp])} can go to. Build one and a keeper will take it there.`); }
           } else {
             const at = tileAt(runaway.x, runaway.y);
             const r = bfs(here, openGround, j => j === at || neighbors(at).includes(j));
@@ -1042,18 +1290,21 @@
             unreachableUntil[src] = nowT() + 20;
           }
         }
-        const claimed = new Set(S.staff.filter(o => o !== s && o.type === 'keeper' && o.state === 'work').map(o => o.ex));
-        let bestE = -1, bestScore = 22;
+        // one keeper per exhibit, but a messy exhibit can take a second (and a third) keeper to help clean it
+        const working = {}; S.staff.forEach(o => { if (o !== s && o.type === 'keeper' && o.state === 'work') working[o.ex] = (working[o.ex] || 0) + 1; });
+        let bestE = -1, bestScore = 8, helper = false;     // an idle keeper will deal with even one dropping
         st.forEach((x, id) => {
-          if (!x.list.length || claimed.has(id) || (unreachableUntil[id] || 0) > nowT()) return;
+          if (!x.list.length || (unreachableUntil[id] || 0) > nowT()) return;
+          const n = working[id] || 0, room = 1 + (x.poop >= 2 ? 1 : 0) + (x.poop >= 6 ? 1 : 0);
+          if (n >= room) return;
           if (skillOf(s) < SPECIALIST_SKILL && [...x.species].some(sp => SPECIALIST.has(sp))) return;   // leave these to trained keepers
-          const hungry = x.list.filter(a => a.hunger > 30 && !(x.food[a.sp] > 0));
-          const score = hungry.reduce((m, a) => Math.max(m, a.hunger), 0) + x.poop * 9;
-          if (score > bestScore) { bestScore = score; bestE = id; }
+          const hungry = n ? [] : x.list.filter(a => a.hunger > 22 && !(x.food[a.sp] > 0));
+          const score = hungry.reduce((m, a) => Math.max(m, a.hunger), 0) + x.poop * 9 - n * 30;
+          if (score > bestScore) { bestScore = score; bestE = id; helper = n > 0; }
         });
         if (bestE >= 0) {
           const r = bfs(here, keeperPass(bestE), workSpot(bestE)) || bfs(here, anyPass, workSpot(bestE));
-          if (r) { s.ex = bestE; s.state = 'work'; s.fed = false; s.path = toPoints(r); s.task = 'Walking to an exhibit'; }
+          if (r) { s.ex = bestE; s.state = 'work'; s.fed = helper; s.path = toPoints(r); s.task = helper ? 'Going to help clean an exhibit' : 'Walking to an exhibit'; }
           else {
             unreachableUntil[bestE] = nowT() + 20;
             if (!s.warned) { log('A keeper can\'t reach an exhibit. Make sure there\'s a path or open grass beside its fence.'); s.warned = true; }
@@ -1062,7 +1313,7 @@
         if (s.state === 'idle') { s.task = 'Waiting for a job'; wander(s); }
       } else if (s.state === 'work') {
         if (!EX[s.ex]) { s.state = 'leave'; return; }
-        const E = EX[s.ex], land = j => exOf[j] === s.ex && S.tiles[j] !== TANK;
+        const E = EX[s.ex], land = j => exOf[j] === s.ex && isDry(S.tiles[j]);
         const need = !s.fed ? foodNeeded(s.ex) : {};
         if (Object.keys(need).length) {
           const ft = E.feedTile, landFood = Object.keys(need).some(sp => !AQUATIC.has(sp));
@@ -1084,7 +1335,7 @@
         if (Math.hypot(a.x - s.x, a.y - s.y) < T * 1.6) {
           a.ledBy = s.id; a.path = [];
           const dest = s.ex, pass = j => openGround(j) || keeperPass(dest)(j);
-          const r = bfs(here, pass, j => exOf[j] === dest && S.tiles[j] !== TANK);
+          const r = bfs(here, pass, j => exOf[j] === dest && isDry(S.tiles[j]));
           if (r) { s.state = 'lead'; s.path = toPoints(r); s.task = `Leading ${a.name} home`; }
           else { a.ledBy = null; s.catching = null; s.state = 'leave'; unreachableUntil[dest] = nowT() + 20; }
         } else {
@@ -1097,7 +1348,7 @@
         const at = tileAt(a.x, a.y);
         if (Math.hypot(a.x - s.x, a.y - s.y) < T * 1.6) {
           const dest = s.ex, pass = j => keeperPass(s.from)(j) || keeperPass(dest)(j) || openGround(j);
-          const r = bfs(here, pass, j => exOf[j] === dest && S.tiles[j] !== TANK);
+          const r = bfs(here, pass, j => exOf[j] === dest && isDry(S.tiles[j]));
           if (r) { a.ledBy = s.id; a.transit = true; a.act = null; a.path = []; s.state = 'lead'; s.path = toPoints(r); s.task = `Moving ${a.name} to a new exhibit`; }
           else { a.moveTo = null; s.catching = null; s.state = 'leave'; log(`A keeper couldn't find a way to ${a.name}'s new exhibit. Make sure a path runs beside both fences.`); }
         } else {
@@ -1109,8 +1360,8 @@
         if (a && a.ledBy === s.id && exOf[here] === s.ex) {
           const moved = a.transit;
           a.loose = false; a.transit = false; a.moveTo = null; a.ledBy = null; a.ex = s.ex; a.x = s.x - 6 * (s.facing || 1); a.y = s.y; a.path = []; a.wait = 1;
-          log(moved ? `${s.name} moved ${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} to its new exhibit.`
-            : `${s.name} brought ${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} back to an exhibit.`);
+          log(moved ? `${s.name} moved ${a.name} the ${lowName(Z.SPECIES[a.sp])} to its new exhibit.`
+            : `${s.name} brought ${a.name} the ${lowName(Z.SPECIES[a.sp])} back to an exhibit.`);
         } else if (a) { a.ledBy = null; a.transit = false; }
         s.catching = null; s.state = 'leave';
       } else if (s.state === 'leave') {
@@ -1186,9 +1437,9 @@
     const pathTiles = S.tiles.filter(t => t === PATH).length, litter = Object.values(S.litter).reduce((t, k) => t + k, 0);
     sc.pathclean = 100 * Math.max(0, 1 - litter / Math.max(4, pathTiles * 0.25));
     note.pathclean = litter ? `${litter} piece${litter > 1 ? 's' : ''} of litter` : 'Spotless';
-    const signed = lived.filter(E => E.signed).length, edu = hasBuilding('edu');
-    sc.edu = (lived.length ? 60 * signed / lived.length : 0) + (edu ? 40 : 0);
-    note.edu = `${lived.length ? `${signed} of ${lived.length} exhibits have a sign` : 'No exhibits to sign yet'}${edu ? '. Education center open' : '. No education center yet'}`;
+    const edu = hasBuilding('edu');
+    sc.edu = edu ? 100 : 0;
+    note.edu = edu ? `Education center open. ${S.today.eduVisits} visit${S.today.eduVisits === 1 ? '' : 's'} today` : 'No education center yet';
     // what guests will happily pay rises with how good the zoo is (not shown as a number: that's for the player to find)
     const wsum = f => SCORE_PARTS.filter(f).reduce((t, P) => t + P.w, 0);
     const known = P => P.id !== 'value' && sc[P.id] != null;
@@ -1243,6 +1494,7 @@
       return !g.gone;
     });
     S.staff.forEach(s => (s.type === 'janitor' ? updateJanitor(s, dt) : updateKeeper(s, dt, st)));
+    updateFx(dt);
     card = scorecard(st);
     S.rep += (card.total - S.rep) * Math.min(1, dt / DAY);
     if (guests.length * GROUP > (S.peakGuests || 0)) S.peakGuests = guests.length * GROUP;
@@ -1270,7 +1522,7 @@
       const to = tool === 'mesh' ? MESH : FENCE;
       if (t === to) return;
       if (t === PATH) return first && toast('Remove the path first.');
-      if (item && !(item === 'sign' && isFence(t))) return first && toast('Something is already here.');
+      if (item) return first && toast('Something is already here.');
       if (isFence(t) && to === FENCE) {
         // swapping mesh for a wooden fence would open the roof on any birds inside
         S.tiles[i] = FENCE; recompute(false);
@@ -1279,24 +1531,22 @@
       }
       if (!canAfford(COST[tool])) return;
       spend('build', COST[tool]); S.tiles[i] = to; delete S.poop[i]; delete S.food[i]; recompute();
-    } else if (tool === 'sign') {
-      if (!isFence(t)) return first && toast('Signs go on an exhibit fence, beside a path.');
-      if (item) return first && toast('There\'s already a sign here.');
-      if (!neighbors(i).some(n => exOf[n] >= 0)) return first && toast('Put the sign on the fence of a finished exhibit.');
-      if (!neighbors(i).some(n => S.tiles[n] === PATH)) return first && toast('Put the sign where the fence runs beside a path, so guests can read it.');
-      if (!canAfford(COST.sign)) return;
-      spend('build', COST.sign); S.items[i] = 'sign'; recompute();
     } else if (ITEMS.includes(tool)) {
-      if (t === TANK && tool !== 'toy') return first && toast('Only a ball can float in the tank.');
+      if (WATER_TOYS.includes(tool) && t !== TANK) return first && toast(`The ${ITEM_NAME[tool]} goes in aquarium tank water.`);
+      if (t === TANK && tool !== 'toy' && !WATER_TOYS.includes(tool)) return first && toast('Only a ball or a water toy can go in the tank.');
+      if (t === POOL && tool !== 'toy') return first && toast('Only a ball can float in a swim pool.');
       if (!isGround(t)) return first && toast('Place this on grass, snow, or inside an exhibit.');
       if (item) return first && toast('Something is already here.');
       if (!canAfford(COST[tool])) return;
       spend('build', COST[tool]); S.items[i] = tool; recompute();
-    } else if (tool === 'snow' || tool === 'tank') {
-      const to = tool === 'snow' ? SNOW : TANK;
+    } else if (tool === 'snow' || tool === 'tank' || tool === 'pool') {
+      const to = tool === 'snow' ? SNOW : tool === 'pool' ? POOL : TANK;
       if (t === to) return;
-      if (!isGround(t)) return first && toast(tool === 'snow' ? 'Snow goes on grass.' : 'Tanks go on grass or snow.');
-      if (to === TANK && item && item !== 'toy') return first && toast('Clear this tile first.');
+      if (!isGround(t)) return first && toast(tool === 'snow' ? 'Snow goes on grass.' : tool === 'pool' ? 'A swim pool goes on grass or snow.' : 'Tanks go on grass or snow.');
+      if (to === POOL && item && item !== 'toy') return first && toast('Clear this tile first.');
+      if (to === POOL && S.animals.some(a => !SWIMMERS.has(a.sp) && tileAt(a.x, a.y) === i)) return first && toast('An animal that doesn\'t swim is standing here.');
+      if (t === POOL && to === TANK) return first && toast('Remove the swim pool first.');
+      if (to === TANK && item && item !== 'toy' && !WATER_TOYS.includes(item)) return first && toast('Clear this tile first.');
       if (to === TANK && S.animals.some(a => !AQUATIC.has(a.sp) && tileAt(a.x, a.y) === i)) return first && toast('An animal is standing here.');
       if (t === TANK && S.animals.some(a => AQUATIC.has(a.sp) && tileAt(a.x, a.y) === i)) return first && toast('Something is swimming here.');
       if (!canAfford(COST[tool])) return;
@@ -1305,18 +1555,18 @@
       const b = BUILDINGS[tool];
       if (t !== GRASS || item) return first && toast('Buildings go on an empty grass tile.');
       if (exOf[i] >= 0) return first && toast('Buildings can\'t go inside an exhibit.');
-      if (!neighbors(i).some(n => S.tiles[n] === PATH)) return first && toast(`The ${b.name.toLowerCase()} needs to be right next to a path.`);
+      if (!neighbors(i).some(n => S.tiles[n] === PATH)) return first && toast(`The ${lowName(b)} needs to be right next to a path.`);
       if (!canAfford(COST[tool])) return;
       spend('build', COST[tool]); S.items[i] = tool; recompute();
-      log(`Built a ${b.name.toLowerCase()}.`);
+      log(`Built a ${lowName(b)}.`);
     } else if (tool === 'remove') {
       if (isEnt) return first && toast('The entrance stays.');
       const refund = c => { const r = Math.round(c * 0.5); S.money += r; S.today.build -= r; };
       if (item) { refund(COST[item]); S.items[i] = null; recompute(); return; }
       if (t === PATH) { S.tiles[i] = GRASS; delete S.litter[i]; recompute(); return; }
-      if (t === SNOW || t === TANK) {
+      if (t === SNOW || t === TANK || t === POOL) {
         if (t === TANK && S.animals.some(a => AQUATIC.has(a.sp) && tileAt(a.x, a.y) === i)) return first && toast('Something is swimming here.');
-        refund(COST[t === SNOW ? 'snow' : 'tank']); S.tiles[i] = GRASS; delete S.poop[i]; recompute(); return;
+        refund(COST[t === SNOW ? 'snow' : t === POOL ? 'pool' : 'tank']); S.tiles[i] = GRASS; delete S.poop[i]; recompute(); return;
       }
       if (isFence(t)) {
         S.tiles[i] = GRASS; recompute(false);   // test the change before committing to it
@@ -1346,7 +1596,7 @@
       spend('animals', d.cost);
       const c = center(i), a = makeAnimal(sp, c.x, c.y, false); a.ex = exOf[i];
       S.animals.push(a);
-      log(`Welcome ${a.name} the ${d.name.toLowerCase()}!`);
+      log(`Welcome ${a.name} the ${lowName(d)}!`);
     }
   }
 
@@ -1357,6 +1607,7 @@
     if (aq && !E.items.tank) return `${d.name}s need an aquarium tank: at least 12 tiles of tank water inside a fence.`;
     if (aq && S.tiles[i] !== TANK) return `${d.name}s live in the water. Click on the tank.`;
     if (!aq && S.tiles[i] === TANK) return `${d.name}s can't live in the water. Click on land in the exhibit.`;
+    if (!aq && S.tiles[i] === POOL) return `Put the ${lowName(d)} down on dry land in the exhibit.`;
     if (FLYERS.has(sp) && !E.aviary) return `${d.name}s fly! They need an aviary: close the exhibit in with aviary mesh instead of fence.`;
     const clash = [...new Set(S.animals.filter(o => o !== a && o.ex === E.id && !o.loose && !o.transit).map(o => o.sp))].find(x => !canShare(x, sp));
     if (clash) return `${d.name}s can't share with ${plural(clash)}. Only animals that live together in the wild can share an exhibit.`;
@@ -1372,12 +1623,12 @@
     if (AQUATIC.has(a.sp)) {
       // the aquarium team moves tank animals straight from one tank to the other
       const c = center(i); a.x = c.x; a.y = c.y; a.ex = exOf[i]; a.path = []; a.moveTo = null;
-      log(`The aquarium team moved ${a.name} the ${d.name.toLowerCase()} to another tank.`);
+      log(`The aquarium team moved ${a.name} the ${lowName(d)} to another tank.`);
     } else {
       if (!S.staff.some(s => s.type === 'keeper')) return toast('Hire a keeper to move animals.');
       if (SPECIALIST.has(a.sp) && !skilledKeeper()) return toast(`Only a keeper trained to skill ${SPECIALIST_SKILL} can move ${plural(a.sp)}.`);
       a.moveTo = i;
-      log(`A keeper will move ${a.name} the ${d.name.toLowerCase()} to a new exhibit.`);
+      log(`A keeper will move ${a.name} the ${lowName(d)} to a new exhibit.`);
     }
     moving = null; setTool('look'); renderPanel();
   }
@@ -1392,13 +1643,13 @@
     const d = Z.SPECIES[a.sp], value = Math.round(d.cost * (a.baby ? SELL_BABY : SELL_ADULT));
     earn('sales', value);
     S.animals = S.animals.filter(x => x !== a);
-    log(`${a.name} the ${d.name.toLowerCase()} moved to another zoo for ${money(value)}.`);
+    log(`${a.name} the ${lowName(d)} moved to another zoo for ${money(value)}.`);
     selected = null; renderPanel();
   }
   function renameAnimal(a, name) {
     name = name.replace(/\s+/g, ' ').trim().slice(0, 16);
     if (!name || name === a.name) return;
-    log(`${a.name} the ${Z.SPECIES[a.sp].name.toLowerCase()} is now called ${name}.`);
+    log(`${a.name} the ${lowName(Z.SPECIES[a.sp])} is now called ${name}.`);
     a.name = name; renderPanel();
   }
   // little portraits in the staff list, so each worker's uniform shows off their rank
@@ -1407,7 +1658,7 @@
       const s = S.staff.find(x => x.id === +cv.dataset.staff); if (!s) return;
       const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
       c.setTransform(1.9, 0, 0, 1.9, 0, 0);
-      A.person(c, 11.5, 29, 0, 1, A.staffLook(s.type, skillOf(s)), false, 'front');
+      A.person(c, 11.5, 29, 0, 1, A.staffLook(s.type, skillOf(s), s.id), false, 'front');
     });
   }
   function train(s) {
@@ -1421,7 +1672,7 @@
   function fire(s) {
     S.staff = S.staff.filter(x => x !== s);
     S.animals.forEach(a => { if (a.ledBy === s.id) { a.ledBy = null; a.transit = false; } });
-    log(`A ${STAFF[s.type].name.toLowerCase()} was let go.`);
+    log(`A ${lowName(STAFF[s.type])} was let go.`);
     selected = null; renderPanel();
   }
 
@@ -1526,6 +1777,24 @@
       ctx.fillStyle = GC.snowDrift; for (let k = 0; k < 3; k++) ctx.fillRect(x + A.rnd(i * 11 + k) * 30, y + A.rnd(i * 13 + k) * 30, 1.5, 1.5);
       return;
     }
+    if (t === POOL) {
+      ctx.fillStyle = GC.pool; ctx.fillRect(x, y, T + 0.5, T + 0.5);
+      ctx.strokeStyle = GC.poolWave; ctx.lineWidth = 1.2; ctx.lineCap = 'round'; ctx.beginPath();
+      for (let k = 0; k < 2; k++) {
+        const gx = x + 6 + A.rnd(i * 5 + k) * 14 + Math.sin(clock * 1.1 + i + k) * 2, gy = y + 10 + k * 12;
+        ctx.moveTo(gx, gy); ctx.quadraticCurveTo(gx + 3, gy - 2, gx + 6, gy); ctx.quadraticCurveTo(gx + 9, gy + 2, gx + 12, gy);
+      }
+      ctx.stroke();
+      // a soft bank where the pool meets dry ground
+      const px = tx(i), py = ty(i), dry = (dx, dy) => inMap(px + dx, py + dy) && S.tiles[idx(px + dx, py + dy)] !== POOL;
+      ctx.strokeStyle = GC.poolEdge; ctx.lineWidth = 2.5; ctx.beginPath();
+      if (dry(0, -1)) { ctx.moveTo(x, y + 1.5); ctx.lineTo(x + T, y + 1.5); }
+      if (dry(0, 1)) { ctx.moveTo(x, y + T - 1.5); ctx.lineTo(x + T, y + T - 1.5); }
+      if (dry(-1, 0)) { ctx.moveTo(x + 1.5, y); ctx.lineTo(x + 1.5, y + T); }
+      if (dry(1, 0)) { ctx.moveTo(x + T - 1.5, y); ctx.lineTo(x + T - 1.5, y + T); }
+      ctx.stroke();
+      return;
+    }
     if (t === TANK) {
       ctx.fillStyle = GC.tank; ctx.fillRect(x, y, T + 0.5, T + 0.5);
       ctx.strokeStyle = GC.tankWave; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.beginPath();
@@ -1611,6 +1880,7 @@
     GC.fenceDark = b('#111111', '#4a2e17'); GC.fenceLight = b('#ffffff', '#cf9a5c');
     const w = (g, c) => A.mix(g, c, A.tint.water);
     GC.snow = p('#fbfbfb', '#f3f8fc'); GC.snowDrift = p('#c9c9c9', '#a9c3d8');
+    GC.pool = w('#b4b4b4', '#5aa6d6'); GC.poolWave = w('#d8d8d8', '#a5d3f0'); GC.poolEdge = w('#8a8a8a', '#c8b48a');
     GC.tank = w('#7f7f7f', '#2a76b6'); GC.tankWave = w('#a8a8a8', '#73b3e6'); GC.tankEdge = w('#4f4f4f', '#1c5487');
     GC.glass = w('#e9e9e9', '#cfe9f5');
     GC.meshDark = b('#333333', '#3d4a3d'); GC.meshLight = b('#ffffff', '#c9d6c9');
@@ -1620,9 +1890,10 @@
     Object.entries(COLOR_AT).forEach(([k, lvl]) => {
       const target = S.stars >= lvl ? 1 : 0, cur = A.tint[k];
       if (cur !== target) A.tint[k] = cur < target ? Math.min(target, cur + dt / 3) : Math.max(target, cur - dt / 3);
+      if (k === 'animals') Z.setColor(A.tint.animals);
     });
   }
-  function snapTint() { Object.entries(COLOR_AT).forEach(([k, lvl]) => { A.tint[k] = S.stars >= lvl ? 1 : 0; }); }
+  function snapTint() { Object.entries(COLOR_AT).forEach(([k, lvl]) => { A.tint[k] = S.stars >= lvl ? 1 : 0; }); Z.setColor(A.tint.animals); }
 
   function render() {
     groundColors();
@@ -1663,16 +1934,19 @@
       } else if (it === 'wheel' || it === 'post') {
         const p = (toyPlay[i] || 0) > clock;
         sprites.push({ y: c.y + 8, f: () => it === 'wheel' ? A.wheel(ctx, c.x, c.y + 8, p ? clock * 8 : 0) : A.post(ctx, c.x, c.y + 8, p ? Math.sin(clock * 30) : 0) });
+      } else if (it === 'perch' || it === 'climb') {
+        const p = (toyPlay[i] || 0) > clock;
+        sprites.push({ y: c.y + 8, f: () => A[it](ctx, c.x, c.y + 8, p ? Math.sin(clock * 6) : 0) });
+      } else if (WATER_TOYS.includes(it)) {
+        const p = (toyPlay[i] || 0) > clock;
+        sprites.push({ y: c.y + 4, f: () => it === 'buoy' ? A.buoy(ctx, c.x, c.y + 6, clock + i, p ? Math.sin(clock * 1.6) * 10 : 0) : A[it](ctx, c.x, c.y + 6, clock + i) });
       } else if (BUILDINGS[it]) {
         sprites.push({ y: c.y + T / 2 - 1, f: () => { if (selected && selected.tile === i && selected.kind === 'building') ring(c.x, c.y + T / 2 - 2, 18); A[it === 'gift' ? 'giftShop' : 'eduCenter'](ctx, c.x, c.y + T / 2 - 1, T); } });
       } else sprites.push({ y: c.y + 8, f: () => A[it](ctx, c.x, c.y + 8, i) });
     }
     const ent = center(idx(ENT.x, ENT.y));
     sprites.push({ y: ent.y + T / 2, f: () => A.entrance(ctx, ent.x, ent.y + T / 2, T) });
-    S.animals.forEach(a => vis(a.x, a.y) && sprites.push({ y: a.y, f: () => {
-      if (selected && selected.ref === a) ring(a.x, a.y, 20);
-      Z.draw(ctx, a.sp, a.x, a.y - (a.hop || 0), { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby, view: animalView(a) });
-    } }));
+    S.animals.forEach(a => vis(a.x, a.y) && sprites.push({ y: a.y, f: () => drawAnimal(a) }));
     guests.forEach(g => !g.inside && vis(g.x, g.y) && sprites.push({ y: g.y, f: () => {
       if (selected && selected.ref === g) ring(g.x, g.y, 8);
       A.person(ctx, g.x, g.y, g.phase, g.facing, g.look, g.moving, g.view || 'side');
@@ -1684,11 +1958,12 @@
     } }));
     S.staff.forEach(s => vis(s.x, s.y) && sprites.push({ y: s.y, f: () => {
       if (selected && selected.ref === s) ring(s.x, s.y, 8);
-      if (!s.look || s.look.skill !== skillOf(s)) s.look = A.staffLook(s.type, skillOf(s));
+      if (!s.look || s.look.skill !== skillOf(s)) s.look = A.staffLook(s.type, skillOf(s), s.id);
       const ph = s.workT > 0 ? clock * 9 : s.phase;
       A.person(ctx, s.x, s.y, ph, s.facing, s.look, s.moving || s.workT > 0, s.workT > 0 ? 'side' : (s.view || 'side'));
     } }));
     sprites.sort((a, b) => a.y - b.y).forEach(s => s.f());
+    drawFx();
     // aviary roofs: a light net over the whole exhibit
     ctx.save(); ctx.strokeStyle = 'rgba(17,17,17,0.13)'; ctx.lineWidth = 1; ctx.beginPath();
     EX.forEach(E => { if (!E.aviary) return; E.tiles.forEach(i => {
@@ -1711,11 +1986,49 @@
       if (E) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; E.tiles.forEach(i => ctx.fillRect(tx(i) * T, ty(i) * T, T, T)); }
     }
   }
-  // Front and back views only show once Alex has approved them for that animal (and age).
+  // How deep each swimmer sits in a swim pool (art units, before scaling): just the head and back show.
+  const SWIM_DEPTH = { penguin: 44, flamingo: 40, bear: 38, polarbear: 40, elephant: 58, hippo: 52, rhino: 40, anaconda: 9 };
+  // Draws one animal, with any pose from what it's doing: swimming (sunk into the water), leaning or spinning
+  // (signature behaviors, scratching), hopping or flying.
+  function drawAnimal(a) {
+    if (selected && selected.ref === a) ring(a.x, a.y, 20);
+    const sc = WORLD_SCALE * (a.baby ? Z.SPECIES[a.sp].babyScale : 1);
+    const sink = (a.sink || 0) * (SWIM_DEPTH[a.sp] || 0) * sc;
+    const lift = (a.hop || 0) + (a.lift || 0) + (a.fly || 0) * FLY_HEIGHT;
+    const opts = { phase: a.phase, moving: a.moving, scale: WORLD_SCALE, facing: a.facing, baby: a.baby, view: animalView(a), fly: a.fly || 0, fire: a.fire || 0, roar: a.roar || 0 };
+    ctx.save();
+    if (sink > 0.5) { ctx.beginPath(); ctx.rect(a.x - 400, a.y - 600, 800, 600); ctx.clip(); }   // hide everything below the water line
+    const tilt = a.tilt || 0, spin = a.spin || 0;
+    if (tilt || spin) {
+      // lean around the hind feet (rearing up) or spin around the middle of the body (flips and rolls)
+      const px = spin ? a.x : a.x - a.facing * (BODY_W[a.sp] || 40) * sc * 0.45, py = spin ? a.y - lift - (BODY_H[a.sp] || 50) * sc * 0.5 : a.y - lift;
+      ctx.translate(px, py); ctx.rotate((tilt + spin) * a.facing); ctx.translate(-px, -py);
+    }
+    if (a.fly > 0.05) { ctx.save(); ctx.fillStyle = `rgba(0,0,0,${0.13 * a.fly})`; ctx.beginPath(); ctx.ellipse(a.x, a.y, 30 * sc * 1.4, 5 * sc * 1.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    Z.draw(ctx, a.sp, a.x + (a.ox || 0), a.y - lift + sink, opts);
+    ctx.restore();
+    if (sink > 0.5) {
+      // the water line around the swimmer
+      const w = (BODY_W[a.sp] || 40) * sc * 0.6, wy = a.y, wob = Math.sin(clock * 3 + a.id) * 1.2;
+      ctx.save(); ctx.strokeStyle = GC.poolWave; ctx.lineWidth = 1.6; ctx.beginPath();
+      ctx.ellipse(a.x, wy, w + wob, 3 + wob * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.ellipse(a.x, wy, w * 1.35 - wob, 4.5, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+  }
+  // Rough size of each animal's side-view art (art units): used to pivot poses and size ripples.
+  const BODY_W = { lion: 110, elephant: 140, giraffe: 110, zebra: 110, penguin: 40, bear: 110, monkey: 60, flamingo: 60, snowleopard: 120,
+    ostrich: 80, seahawk: 50, hippo: 130, anaconda: 190, rhino: 140, polarbear: 120, shark: 110, orca: 120, triceratops: 160, basilisk: 190,
+    unicorn: 100, parrot: 40, toucan: 40, owl: 40, eagle: 50, dolphin: 120, trex: 260, raptor: 130, titanosaur: 400, dragon: 220 };
+  const BODY_H = { lion: 90, elephant: 120, giraffe: 200, zebra: 100, penguin: 60, bear: 80, monkey: 70, flamingo: 120, snowleopard: 70,
+    ostrich: 150, seahawk: 50, hippo: 80, anaconda: 30, rhino: 90, polarbear: 90, shark: 60, orca: 70, triceratops: 100, basilisk: 80,
+    unicorn: 110, parrot: 55, toucan: 55, owl: 60, eagle: 60, dolphin: 60, trex: 160, raptor: 90, titanosaur: 280, dragon: 150 };
+
+  // Animals turn to the side while playing or doing their signature behavior.
   function animalView(a) {
-    if (a.act === 'play' || !a.view || a.view === 'side') return 'side';
-    const ok = Z.APPROVED[a.sp] && Z.APPROVED[a.sp][a.baby ? 'babyFrontBack' : 'adultFrontBack'];
-    return ok ? a.view : 'side';
+    if (a.act === 'play') return a.playView || 'side';
+    if (a.beh || !a.view) return 'side';
+    return a.view;
   }
   function ring(x, y, r) {
     ctx.save(); ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = '#111';
@@ -1725,14 +2038,14 @@
     const t = S.tiles[i], it = S.items[i];
     if (tool === 'path') return t === GRASS && !it && exOf[i] < 0;
     if (tool === 'fence' || tool === 'mesh') return (isGround(t) && !it) || (isFence(t) && t !== (tool === 'mesh' ? MESH : FENCE));
-    if (tool === 'sign') return isFence(t) && !it && neighbors(i).some(n => exOf[n] >= 0) && neighbors(i).some(n => S.tiles[n] === PATH);
-    if (ITEMS.includes(tool)) return !it && (t === GRASS || t === SNOW || (t === TANK && tool === 'toy'));
+    if (ITEMS.includes(tool)) return !it && (WATER_TOYS.includes(tool) ? t === TANK : t === GRASS || t === SNOW || ((t === TANK || t === POOL) && tool === 'toy'));
     if (tool === 'snow') return t === GRASS;
+    if (tool === 'pool') return (t === GRASS || t === SNOW) && !it;
     if (tool === 'tank') return (t === GRASS || t === SNOW) && (!it || it === 'toy');
     if (BUILDINGS[tool]) return t === GRASS && !it && exOf[i] < 0 && neighbors(i).some(n => S.tiles[n] === PATH);
     if (tool === 'remove') return (t !== GRASS || !!it) && i !== idx(ENT.x, ENT.y);
     if (tool === 'move') return !!moving && exOf[i] >= 0 && exOf[i] !== moving.ex && !cantLiveAt(moving, i);
-    if (tool === 'animal') return exOf[i] >= 0 && approved(toolSpecies, false) && ((S.tiles[i] === TANK) === AQUATIC.has(toolSpecies));
+    if (tool === 'animal') return exOf[i] >= 0 && approved(toolSpecies, false) && (AQUATIC.has(toolSpecies) ? S.tiles[i] === TANK : isDry(S.tiles[i]));
     return true;
   }
 
@@ -1876,7 +2189,7 @@
   const speciesOpen = sp => !!sp && (Z.SPECIES[sp].secret ? !!S.secrets[sp] : S.stars >= starOf('animals', sp));
   const goalMet = ([k, n]) => GOAL[k].have() >= n;
   const starText = n => '★'.repeat(n) + '☆'.repeat(MAX_STARS - n);
-  function unlockName(id) { return Z.SPECIES[id] ? Z.SPECIES[id].name.toLowerCase() : BUILDINGS[id] ? BUILDINGS[id].name.toLowerCase() : ITEM_NAME[id] || id; }
+  function unlockName(id) { return Z.SPECIES[id] ? lowName(Z.SPECIES[id]) : BUILDINGS[id] ? lowName(BUILDINGS[id]) : ITEM_NAME[id] || id; }
   function toastLocked(id) {
     const n = Z.SPECIES[id] ? starOf('animals', id) : starOf('tools', id), nm = unlockName(id);
     toast(`${nm[0].toUpperCase() + nm.slice(1)} unlocks at ${n} stars. Click the stars at the top to see how.`);
@@ -1895,11 +2208,12 @@
       const msg = `The zoo earned ${S.stars} stars!` + (news.length ? ` New: ${news.join(', ')}.` : '') + (L.color ? ` ${L.color}.` : '')
         + (L.mystery ? ' Rumor has it that something rare could turn up at a zoo like this...' : '');
       log(msg); toast(msg);
+      if (L.hidden) { buildTray(); wireTray(); }
       renderHud(); renderTray(); if (panelMode === 'stars') renderPanel();
     }
   }
 
-  // ---------- bottom bar tabs: Build / Animals / Staff ----------
+  // ---------- bottom bar tabs: Build / Animals / Staff / Exhibits ----------
   let tab = 'build';
   function setTab(t) {
     tab = t;
@@ -1908,22 +2222,72 @@
     // a tool from another tab shouldn't stay armed
     const armed = document.querySelector(`#tray .pane[data-pane="${t}"] button[data-tool="${tool}"]`);
     if (tool !== 'look' && !armed) setTool('look');
+    if (t === 'exhibits') exPaneKey = '';
     renderTray();
   }
   function buildTray() {
     const rank = id => Z.SPECIES[id].secret ? 9 : starOf('animals', id);
-    const order = Z.ids.filter(id => !Z.SPECIES[id].secret || S.secrets[id]).sort((x, y) => rank(x) - rank(y) || Z.SPECIES[x].cost - Z.SPECIES[y].cost);
+    const shown = id => Z.SPECIES[id].secret ? !!S.secrets[id] : !STARS[starOf('animals', id)].hidden || S.stars >= starOf('animals', id);
+    const order = Z.ids.filter(shown).sort((x, y) => rank(x) - rank(y) || Z.SPECIES[x].cost - Z.SPECIES[y].cost);
     $$('animals').innerHTML = order.map(id => {
       const d = Z.SPECIES[id], ok = approved(id, false);
       return `<button class="critter" data-tool="animal" data-sp="${id}" ${ok ? '' : 'disabled'}
-        title="${d.name}: wants ${d.wants.join(', ')}${ok ? '' : ' (awaiting approval)'}">
+        title="${d.name}: wants ${d.wants.map(wantName).join(', ')}">
         <canvas width="76" height="38" data-prev="${id}"></canvas>${d.name}<small>${ok ? money(d.cost) : 'awaiting approval'}</small></button>`;
     }).join('');
     $$('staff').innerHTML = Object.entries(STAFF).map(([t, d]) =>
-      `<button class="hire" data-hire="${t}" title="${d.job}">Hire ${d.name.toLowerCase()}<small>${money(d.hire)}, then ${money(d.wage)}/day</small><small data-count="${t}"></small></button>`).join('') +
+      `<button class="hire" data-hire="${t}" title="${d.job}">Hire ${lowName(d)}<small>${money(d.hire)}, then ${money(d.wage)}/day</small><small data-count="${t}"></small></button>`).join('') +
       `<span class="sep"></span><button id="b-staff">Staff & training<small>see everyone, train skills</small></button>`;
   }
+  // ---------- exhibits overview ----------
+  function exhibitName(E, st) {
+    const sp = [...st.species];
+    if (!sp.length) return E.tankTiles.length >= E.tiles.length * 0.5 ? 'Empty tank' : E.aviary ? 'Empty aviary' : 'Empty exhibit';
+    return sp.map(x => capital(plural(x))).join(' & ');
+  }
+  // How an exhibit is doing: averages over its animals, plus a short list of what needs fixing.
+  function exhibitReport(E, stAll) {
+    const st = stAll[E.id], list = st.list, n = list.length, parts = list.map(a => happinessParts(a, stAll));
+    const avg = f => (n ? 100 * parts.reduce((t, p) => t + f(p), 0) / n : null);
+    const clean = 100 * Math.max(0, 1 - st.poop / Math.max(3, E.tiles.length * 0.15));
+    const issues = [];
+    if (n) {
+      const missing = [...new Set(parts.flatMap(p => p.missing || []))];
+      if (missing.length) issues.push('Wants ' + missing.map(wantName).join(', '));
+      if (parts.some(p => p.space < 0.95)) issues.push('Too crowded: needs more room');
+      const soc = list.filter((a, k) => parts[k].social < 1).map(a => a.sp);
+      if (soc.length) issues.push([...new Set(soc)].map(sp => SOCIAL[sp] && SOCIAL[sp].alone ? `${capital(plural(sp))} want fewer together` : `${capital(plural(sp))} want a bigger group (${SOCIAL[sp].group}+)`).join('. '));
+      if (parts.some(p => p.food < 0.6)) issues.push('Some animals are hungry');
+      if (clean < 70) issues.push('Needs cleaning');
+      [...new Set(parts.flatMap(p => (p.notes || []).filter(t => /^Needs /.test(t))))].forEach(t => issues.push(t));
+      if (list.some(a => SPECIALIST.has(a.sp)) && !skilledKeeper()) issues.push(`Needs a keeper trained to skill ${SPECIALIST_SKILL}`);
+    }
+    if (!E.reachable) issues.push('Hard for keepers to reach');
+    return { n, happy: n ? list.reduce((t, a) => t + a.happy, 0) / n : null, wants: avg(p => p.wants), space: avg(p => p.space),
+      social: avg(p => (p.social == null ? 1 : p.social)), fed: avg(p => p.food), clean: n ? clean : null, issues };
+  }
+  function showExhibit(E) {
+    const c = E.tiles.reduce((t, i) => ({ x: t.x + center(i).x / E.tiles.length, y: t.y + center(i).y / E.tiles.length }), { x: 0, y: 0 });
+    view.x = c.x - W / view.zoom / 2; view.y = c.y - H / view.zoom / 2; clampView();
+    selected = { tile: E.tiles.slice().sort((a, b) => Math.hypot(center(a).x - c.x, center(a).y - c.y) - Math.hypot(center(b).x - c.x, center(b).y - c.y))[0] };
+  }
+  let exPaneKey = '';
+  function renderExhibitPane() {
+    const pane = document.querySelector('#tray .pane[data-pane="exhibits"]'); if (!pane) return;
+    const stAll = lastExStats.length === EX.length ? lastExStats : exStats();
+    const items = EX.map(E => { const r = exhibitReport(E, stAll); return { id: E.id, name: exhibitName(E, stAll[E.id]), r }; });
+    const key = items.map(x => `${x.id}|${x.name}|${x.r.happy == null ? '-' : Math.round(x.r.happy / 5)}|${x.r.issues.length}`).join(';');
+    if (key === exPaneKey && pane.childElementCount) return;
+    exPaneKey = key;
+    pane.innerHTML = `<button id="b-exov">Exhibit overview<small>every exhibit at a glance</small></button><span class="sep"></span>` +
+      (items.map((x, k) => `<button data-ex="${x.id}" title="${escapeHtml(x.r.issues.join('. ') || 'All good')}">${k + 1}. ${escapeHtml(x.name)}<small>${x.r.happy == null ? 'no animals' : `happiness ${Math.round(x.r.happy)}`}${x.r.issues.length ? ` · ${x.r.issues.length} to fix` : ' · all good'}</small></button>`).join('')
+        || '<span class="muted" style="align-self:center">No exhibits yet. Fence in some grass beside a path.</span>');
+    $('b-exov').onclick = () => openPanel(panelMode === 'exhibits' ? null : 'exhibits');
+    pane.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const E = EX[+b.dataset.ex]; if (E) { showExhibit(E); openPanel('info'); } });
+  }
+
   function renderTray() {
+    if (tab === 'exhibits') renderExhibitPane();
     document.querySelectorAll('#tray button[data-tool]').forEach(b => {
       const id = b.dataset.sp || b.dataset.tool, locked = b.dataset.sp ? !speciesOpen(id) : !toolOpen(id);
       if (b.classList.contains('locked') === locked && b.dataset.ready) return;
@@ -1973,7 +2337,7 @@
 
   function openPanel(mode) {
     panelMode = mode;
-    $('panel').classList.toggle('wide', mode === 'staff');
+    $('panel').classList.toggle('wide', mode === 'staff' || mode === 'exhibits');
     $('panel').classList.toggle('open', !!mode);
     renderPanel();
   }
@@ -1981,6 +2345,20 @@
 
   function renderPanel() {
     const el = $('panel-body'); if (!panelMode) { el.innerHTML = ''; return; }
+    if (panelMode === 'exhibits') {
+      $('panel-title').textContent = 'Exhibits';
+      const stAll = exStats(), rep2 = EX.map(E => ({ E, name: exhibitName(E, stAll[E.id]), r: exhibitReport(E, stAll) }));
+      const animals = rep2.reduce((t, x) => t + x.r.n, 0), todo = rep2.filter(x => x.r.issues.length).length;
+      const row = (label, v) => v == null ? '' : `<div class="row"><span class="lbl">${label}</span>${bar(v)}<small class="num">${Math.round(v)}</small></div>`;
+      el.innerHTML = `<div class="card"><b>${EX.length} exhibit${EX.length === 1 ? '' : 's'}</b>, ${animals} animal${animals === 1 ? '' : 's'}<br>
+        <small>${todo ? `${todo} exhibit${todo === 1 ? ' needs' : 's need'} attention.` : EX.length ? 'Everything looks good.' : 'Fence in some grass beside a path to make an exhibit.'}</small></div>` +
+        rep2.map((x, k) => `<div class="card"><div class="exhead"><div><b>${k + 1}. ${escapeHtml(x.name)}</b><br><small>${x.r.n} animal${x.r.n === 1 ? '' : 's'}, ${x.E.tiles.length} tiles${x.E.poolTiles.length ? `, ${x.E.poolTiles.length} pool` : ''}${x.E.tankTiles.length ? `, ${x.E.tankTiles.length} tank` : ''}</small></div>
+          <button data-show="${x.E.id}">Show</button></div>
+          ${row('Happiness', x.r.happy)}${row('Wants met', x.r.wants)}${row('Space', x.r.space)}${row('Company', x.r.social)}${row('Fed', x.r.fed)}${row('Clean', x.r.clean)}
+          ${x.r.issues.length ? x.r.issues.map(t => `<small>! ${escapeHtml(t)}</small>`).join('<br>') : x.r.n ? '<small>All good.</small>' : '<small>No animals yet.</small>'}</div>`).join('');
+      el.querySelectorAll('[data-show]').forEach(b => b.onclick = () => { const E = EX[+b.dataset.show]; if (E) { showExhibit(E); openPanel('info'); } });
+      return;
+    }
     if (panelMode === 'stars') {
       $('panel-title').textContent = `Zoo stars: ${S.stars} of ${MAX_STARS}`;
       const next = STARS[S.stars + 1];
@@ -1989,10 +2367,10 @@
         return `<div class="row">${ok ? '✓' : '·'} ${GOAL[k].label(n)}</div><div class="row">${bar(100 * Math.min(have, n) / n)} <small>${Math.min(have, n)}/${n}</small></div>`;
       }).join('') : '';
       const ladder = STARS.slice(1).map((L, k) => {
-        const n = k + 1, got = S.stars >= n, items = [...L.animals, ...L.tools].map(unlockName);
+        const n = k + 1, got = S.stars >= n, items = L.hidden && !got ? [] : [...L.animals, ...L.tools].map(unlockName);
         return `<div class="card ${got ? '' : 'dim'}"><b>${starText(n)}</b>${got ? ' <small>earned</small>' : ''}<br>
           ${L.need.length ? `<small>Needs: ${L.need.map(([key, v]) => GOAL[key].label(v).toLowerCase()).join(', ')}</small><br>` : '<small>Where every zoo starts</small><br>'}
-          ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.mystery ? '<small>Unlocks: ???</small><br>' : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
+          ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.mystery || (L.hidden && !got) ? '<small>Unlocks: ???</small><br>' : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
       }).join('');
       el.innerHTML = (next ? `<div class="card"><b>Next star</b><br><small>Meet all of these at the same time.</small>${goals}</div>`
         : `<div class="card"><b>A ${MAX_STARS}-star zoo!</b><br><small>You've earned every star. Keep your eyes open...</small></div>`) + ladder;
@@ -2066,7 +2444,7 @@
       const said = Object.entries(S.comments).sort((a, b) => b[1] - a[1]).slice(0, 6);
       el.innerHTML = `<div class="card"><div class="bigrow"><span class="big">${r}</span><span>out of 100<br><b>${word}</b></span></div>
         <small>The rating scores how good a zoo this is, from everything below. A higher rating brings more guests each day.${aim !== r ? ` It's moving ${aim > r ? 'up' : 'down'} toward ${aim}.` : ''}</small>
-        ${gaps.length ? `<br><small>Most room to improve: <b>${gaps.map(x => x[0].name.toLowerCase()).join('</b> and <b>')}</b>.</small>` : ''}</div>
+        ${gaps.length ? `<br><small>Most room to improve: <b>${gaps.map(x => lowName(x[0])).join('</b> and <b>')}</b>.</small>` : ''}</div>
         ${groups.map(G => `<div class="card"><b>${G}</b> <small>${cd.parts.filter(P => P.group === G).reduce((t, P) => t + P.w, 0)}% of the rating</small>
           ${cd.parts.filter(P => P.group === G).map(P => `<div class="row">${P.name} <small>${P.w}%</small> ${P.score == null ? '<span class="bar empty"></span>' : bar(P.score)}</div><small>${escapeHtml(P.note)}</small>`).join('')}</div>`).join('')}
         <div class="card"><b>What guests are saying</b>${said.length ? said.map(([c, n]) => `<div class="logline">"${escapeHtml(c)}" <small>x${Math.max(1, Math.round(n))}</small></div>`).join('') : '<br><small>No comments yet. Guests share their thoughts on the way out.</small>'}</div>`;
@@ -2076,10 +2454,11 @@
       $('panel-title').textContent = 'How to play';
       el.innerHTML = `<ol class="help">
         <li>Earn <b>stars</b> by running a good zoo. Each star unlocks new animals and buildings, and brings a little more color to the zoo. Click the stars at the top to see your next goal.</li>
-        <li>The bar at the bottom has three tabs: <b>Build</b> (paths, fences, exhibit items, buildings), <b>Animals</b>, and <b>Staff</b>.</li>
+        <li>The bar at the bottom has four tabs: <b>Build</b> (paths, fences, exhibit items, buildings), <b>Animals</b>, <b>Staff</b>, and <b>Exhibits</b> (how every exhibit is doing, and what each one needs).</li>
         <li>Draw <b>paths</b> from the entrance so guests can walk around.</li>
         <li>Surround a patch of grass with <b>fences</b> to make an exhibit. It must be fully closed and right beside a path so keepers can get in.</li>
-        <li>Add what the animal wants: a <b>tree</b>, <b>bush</b>, <b>water</b>, or <b>toy</b>.</li>
+        <li>Add what the animal wants: a <b>tree</b>, <b>bush</b>, <b>water</b> (a pond, or a swim pool of ${POOL_MIN}+ tiles), or its own kind of <b>toy</b>: a ball, scratching post, exercise wheel, climbing frame (monkeys), perch (birds), or, in a tank, a floating buoy, bubble curtain, or floating hoop. Hover over an animal in the Animals tab to see what it wants.</li>
+        <li>Animals that love the water (penguins, flamingos, bears, polar bears, elephants, hippos, rhinos, and anacondas) swim in a <b>swim pool</b> painted inside their exhibit.</li>
         <li>Buy <b>animals</b> and click them into the exhibit. Give each one enough room.</li>
         <li>Herd and flock animals (like zebras, penguins, flamingos, and monkeys) are happiest in a group of their own kind. Solitary animals (like bears, snow leopards, and polar bears) like to live alone or in pairs. Click an animal to see how it feels about its company.</li>
         <li>Hire <b>keepers</b> to put out food and clean exhibits, and <b>janitors</b> to sweep litter. Janitors split the paths between them, so each looks after their own area (click one to see it). Food costs money each time a keeper puts it out.</li>
@@ -2091,9 +2470,9 @@
         <li>If an animal gets out, a keeper will lead it back to an exhibit it can live in.</li>
         <li>Train your staff from <b>Staff & training</b>. Skilled staff are faster and better at their jobs, but cost more.</li>
         <li>Guests stop at the fence to watch the animals, and linger longer at their favorites, babies, and happy animals.</li>
+        <li>Every kind of animal has its own signature move that it does now and then. Keep an eye out: lions roar, elephants spray water, monkeys do backflips, dolphins leap and spin...</li>
         <li>Guests pay a ticket at the gate. More guests come for a wider variety of animals: a new species draws more visitors than one more of a species you already have.</li>
-        <li>The <b>rating</b> is a scorecard of what makes a good zoo: your collection (variety, headline animals, size, babies), animal care (habitat, space, company, food, clean exhibits), and the guest experience (clean paths, ticket value, education). Click it to see each part. A better zoo can also charge more before guests feel the price is steep.</li>
-        <li>Put an <b>exhibit sign</b> on each exhibit's fence, where it runs beside a path. Signs count toward education, along with the education center.</li>
+        <li>The <b>rating</b> is a scorecard of what makes a good zoo: your collection (variety, headline animals, size, babies), animal care (habitat, space, company, food, clean exhibits), and the guest experience (clean paths, ticket value, the education center). Click it to see each part. A better zoo can also charge more before guests feel the price is steep.</li>
         <li>Click the <b>money</b> at the top for income and costs.</li>
         <li>Build a <b>gift shop</b> next to a path. Guests may buy a stuffed version of their favorite animal.</li>
         <li>Build an <b>education center</b> next to a path. Guests who visit learn a fact and enjoy the exhibits more.</li>
@@ -2108,7 +2487,7 @@
       if (selected.kind === 'animal') {
         const a = selected.ref; if (!S.animals.includes(a)) { openPanel(null); return; }
         const d = Z.SPECIES[a.sp], p = happinessParts(a, lastExStats.length ? lastExStats : exStats());
-        $('panel-title').textContent = `${a.name} the ${d.name.toLowerCase()}`;
+        $('panel-title').textContent = `${a.name} the ${lowName(d)}`;
         const doing = a.transit ? 'Being moved to a new exhibit' : a.loose ? (a.ledBy != null ? 'Being led home by a keeper' : 'Got out! Waiting for a keeper') : a.act === 'eat' ? 'Eating' : a.act === 'play' ? `Playing with the ${ITEM_NAME[a.toy] || 'ball'}` : a.goal === 'food' ? 'Heading to the food' :
           a.goal === 'toy' ? 'Going to play' : a.hunger > 60 ? 'Hungry, waiting for a keeper' : 'Wandering around';
         const diet = DIET[a.sp];
@@ -2148,9 +2527,9 @@
         const g = selected.ref;
         $('panel-title').textContent = 'Visitors';
         const mood = g.happy > 70 ? 'Having a great time' : g.happy > 45 ? 'Enjoying the zoo' : g.happy > 25 ? 'A bit bored' : 'Unhappy';
-        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.watch ? (g.watch.ex >= 0 ? ` Watching the ${plural(g.watch.sp)}.` : ' Taking a breather.') : ''}${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${BUILDINGS[g.inside.type].name.toLowerCase()}.` : ''}<br>
+        el.innerHTML = `<div class="card"><div class="row">Happiness ${bar(g.happy)}</div><small>${mood}. Seen ${g.seen.size} exhibit(s).${g.watch ? (g.watch.ex >= 0 ? ` Watching the ${plural(g.watch.sp)}.` : ' Taking a breather.') : ''}${g.leaving ? ' Heading home.' : ''}${g.inside ? ` Inside the ${lowName(BUILDINGS[g.inside.type])}.` : ''}<br>
           ${g.wish ? `Came hoping to see the ${plural(g.wish)}${g.gotWish ? ', and did' : ''}. ` : ''}${g.plan && g.plan.length ? `${g.plan.length} more exhibit(s) to visit. ` : ''}
-          ${g.fav ? `Favorite animal: ${Z.SPECIES[g.fav].name.toLowerCase()}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${Z.SPECIES[g.plush].name.toLowerCase()}.` : ''}</small>
+          ${g.fav ? `Favorite animal: ${lowName(Z.SPECIES[g.fav])}.` : 'No favorite animal yet.'}${g.plush ? ` Carrying a stuffed ${lowName(Z.SPECIES[g.plush])}.` : ''}</small>
           ${g.learned ? `<br><small>Learned: ${FACTS[g.learned]}</small>` : ''}</div>`;
       } else if (selected.kind === 'building') {
         const it = S.items[selected.tile], b = BUILDINGS[it]; if (!b) { openPanel(null); return; }
@@ -2170,12 +2549,13 @@
         const E = EX[exOf[selected.tile]]; if (!E) { openPanel(null); return; }
         const st = (lastExStats.length ? lastExStats : exStats())[E.id];
         const counts = {}; st.list.forEach(a => { const k = Z.SPECIES[a.sp].name + (a.baby ? ' (baby)' : ''); counts[k] = (counts[k] || 0) + 1; });
-        $('panel-title').textContent = 'Exhibit';
-        el.innerHTML = `<div class="card"><b>${E.tiles.length} tiles</b>, room for about ${Math.round(E.tiles.length - st.need)} more tiles of animals<br>
+        $('panel-title').textContent = exhibitName(E, st);
+        el.innerHTML = `<div class="card"><button id="b-allex">All exhibits</button></div><div class="card"><b>${E.tiles.length} tiles</b>, room for about ${Math.round(E.tiles.length - st.need)} more tiles of animals<br>
           <small>Animals: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ') || 'none yet'}<br>
           Items: ${Object.entries(E.kinds).map(([k, v]) => `${v} ${ITEM_NAME[k] || k}`).join(', ') || 'none'}<br>
           ${E.tankTiles.length ? `Tank water: ${E.tankTiles.length} tiles${E.items.tank ? '' : ' (needs 12 for an aquarium)'}<br>` : ''}${E.snow ? `Snow: ${E.snow} tiles${E.items.snow ? ', snowy enough for cold animals' : ' (cover half the land for cold animals)'}<br>` : ''}${E.aviary ? 'An aviary: birds can live here.<br>' : ''}${st.mixed ? 'A mixed exhibit.<br>' : ''}
           Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers have to cut through other exhibits to get here.</b> A path or open grass beside the fence makes it easier.'}</small></div>`;
+        $('b-allex').onclick = () => openPanel('exhibits');
       }
       return;
     }
@@ -2235,7 +2615,7 @@
       moving = null;
       const d = Z.SPECIES[b.dataset.sp];
       setTool('animal', b.dataset.sp);
-      toast(`${d.name}s want: ${d.wants.join(', ')}. Click inside a fenced exhibit.`);
+      toast(`${d.name}s want ${d.wants.map(wantName).join(', ')}. Click inside a fenced exhibit.`);
       return;
     }
     setTool(t);
@@ -2270,7 +2650,7 @@
     for (let k = 0; k < steps; k++) tick(dt / steps);
     render();
     hudT += dt; saveT += dt;
-    if (hudT > 0.25) { hudT = 0; renderHud(); renderTray(); if (['info', 'staff', 'money', 'rating', 'stars'].includes(panelMode)) renderPanelLive(); }
+    if (hudT > 0.25) { hudT = 0; renderHud(); renderTray(); if (['info', 'staff', 'money', 'rating', 'stars', 'exhibits'].includes(panelMode)) renderPanelLive(); }
     if (tab === 'animals') drawShopPreviews();
     if (saveT > 30) { saveT = 0; save(true); }
     requestAnimationFrame(frame);
@@ -2310,5 +2690,5 @@
   requestAnimationFrame(frame);
 
   // small hook for automated testing
-  window.__zoo = { scorecard, attraction, guestsPerDay, janitorZones, get zoneOf() { return zoneOf; }, get zoneTiles() { return zoneTiles; }, get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, setTab, checkStars, STARS, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal, startMove, moveTo };
+  window.__zoo = { startBehavior, get fx() { return fx; }, exhibitReport, scorecard, attraction, guestsPerDay, janitorZones, get zoneOf() { return zoneOf; }, get zoneTiles() { return zoneTiles; }, get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, setTab, checkStars, STARS, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal, startMove, moveTo };
 })();

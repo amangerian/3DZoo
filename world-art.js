@@ -9,7 +9,7 @@
     c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.lineWidth = w; c.strokeStyle = col; c.lineCap = 'round'; c.stroke();
   }
   // Color fades in as the zoo earns stars. Each layer runs from 0 (black and white) to 1 (full color).
-  const tint = { plants: 0, water: 0, built: 0 };
+  const tint = { plants: 0, water: 0, built: 0, people: 0, animals: 0 };
   const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   function mix(gray, color, k) {
     if (k <= 0) return gray; if (k >= 1) return color;
@@ -17,6 +17,11 @@
     return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(',')})`;
   }
   const P = (g, col) => mix(g, col, tint.plants), Wt = (g, col) => mix(g, col, tint.water), B = (g, col) => mix(g, col, tint.built);
+  const Pe = (g, col) => mix(g, col || g, tint.people);
+  // A person's colors (shown from five stars): shirt, skin, hair or hat, and trousers.
+  const shirtOf = look => Pe(look.shirt, look.shirtC), skinOf = look => Pe('#ffffff', look.skin || '#f0c8a0'),
+    hairOf = look => Pe('#111111', look.hairC || '#3a2616'), pantsOf = look => Pe('#111111', look.pants || '#3b4a6b'),
+    capOf = look => Pe('#111111', look.capC || look.hairC || '#2b3f55');
   // Small deterministic random from a seed, so scenery doesn't flicker.
   function rnd(seed) { const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 
@@ -93,16 +98,68 @@
       ell(c, x, y - 13, 2, 2); c.fillStyle = INK; c.fill();
     },
 
-    // Exhibit sign: a small board on two legs, with a few lines of text and an "i" for information.
-    sign(c, x, y) {
-      Art.shadow(c, x, y, 9);
-      line(c, x - 6, y, x - 6, y - 10, 1.8, B('#555555', '#6b4a2b'));
-      line(c, x + 6, y, x + 6, y - 10, 1.8, B('#555555', '#6b4a2b'));
-      c.beginPath(); c.rect(x - 10, y - 21, 20, 12); fillStroke(c, B('#ffffff', '#f4ead2'), 1.6);
-      c.beginPath(); c.arc(x - 6, y - 15, 2.6, 0, Math.PI * 2); c.fillStyle = B('#111111', '#2f6b3a'); c.fill();
-      line(c, x - 6, y - 16, x - 6, y - 13.6, 1, WHITE);
-      c.fillStyle = WHITE; c.fillRect(x - 6.5, y - 17.6, 1, 0.9);
-      [-18, -15, -12].forEach((dy, k) => line(c, x - 2, y + dy, x + (k === 2 ? 4 : 7), y + dy, 1, B('#777777', '#8a7a5a')));
+    // Bird perch: a natural branch on a post, with a crossbar to land on and a short side twig.
+    perch(c, x, y, sway = 0) {
+      Art.shadow(c, x, y, 8);
+      const wood = B('#9a9a9a', '#8a5a32'), dark = B('#6a6a6a', '#6b4426');
+      c.beginPath(); c.moveTo(x - 2.4, y); c.lineTo(x - 1.6, y - 20); c.lineTo(x + 1.6, y - 20); c.lineTo(x + 2.4, y); c.closePath(); fillStroke(c, wood, 1.6);
+      line(c, x - 1, y - 6, x + 1, y - 9, 0.9, dark); line(c, x - 1, y - 13, x + 1, y - 15, 0.9, dark);
+      c.save(); c.translate(x, y - 20); c.rotate(sway * 0.05);
+      c.beginPath(); c.moveTo(-12, -1.6); c.quadraticCurveTo(0, -3, 12, -1.2); c.lineTo(12, 1.6); c.quadraticCurveTo(0, 0.6, -12, 1.8); c.closePath(); fillStroke(c, wood, 1.5);
+      ell(c, -12, 0, 1.4, 1.8); fillStroke(c, dark, 1); ell(c, 12, 0.2, 1.4, 1.6); fillStroke(c, dark, 1);
+      line(c, 6, -1, 10, -6, 2.4, INK); line(c, 6, -1, 10, -6, 1, wood);
+      c.beginPath(); c.moveTo(10, -6); c.quadraticCurveTo(14, -9, 13, -5); c.quadraticCurveTo(12, -4, 10, -6); fillStroke(c, P('#ffffff', '#5aa548'), 1);
+      c.restore();
+    },
+
+    // Climbing frame for monkeys: two A-shaped log ends, a top beam, rungs, and a hanging rope.
+    climb(c, x, y, shake = 0) {
+      Art.shadow(c, x, y, 15);
+      const wood = B('#a5a5a5', '#93613a'), rope = B('#dcdcdc', '#d8c08a'), top = y - 30 + shake * 0.5;
+      [[-13, -6], [13, 6]].forEach(([fx, tx2]) => { line(c, x + fx, y, x + tx2 * 0.4, top, 4.6, INK); line(c, x + fx, y, x + tx2 * 0.4, top, 2.6, wood); });
+      [[-6, -13], [6, 13]].forEach(([fx, b]) => { line(c, x + b * 0.35, y + 2, x + fx * 0.4, top + 1, 4, INK); line(c, x + b * 0.35, y + 2, x + fx * 0.4, top + 1, 2.2, B('#8a8a8a', '#7a5030')); });
+      line(c, x - 6, top, x + 6, top, 5, INK); line(c, x - 6, top, x + 6, top, 3, wood);
+      for (let k = 1; k <= 3; k++) { const t = k / 4, ry = y - 30 * t, half = 13 * (1 - t) + 2.4 * t;
+        line(c, x - half, ry, x + half, ry, 3, INK); line(c, x - half, ry, x + half, ry, 1.6, wood); }
+      const rx = x + 3 + Math.sin(shake * 2) * 2;
+      c.beginPath(); c.moveTo(x + 3, top); c.quadraticCurveTo(rx + 1, top + 10, rx, top + 19); c.lineWidth = 2.6; c.strokeStyle = INK; c.stroke();
+      c.lineWidth = 1.2; c.strokeStyle = rope; c.stroke();
+      ell(c, rx, top + 20, 2, 1.6); fillStroke(c, rope, 1);
+    },
+
+    // Floating buoy for tank animals to push around: a striped float riding in the water with a ring of ripples.
+    buoy(c, x, y, t = 0, dx = 0) {
+      const bx = x + dx, by = y - 3 + Math.sin(t * 2.2) * 1.4, tilt = Math.sin(t * 1.7) * 0.18;
+      c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 1.2; ell(c, bx, y + 1, 12, 3.5); c.stroke();
+      c.save(); c.translate(bx, by); c.rotate(tilt);
+      c.beginPath(); c.moveTo(-7, 2); c.quadraticCurveTo(-8, -9, 0, -11); c.quadraticCurveTo(8, -9, 7, 2); c.closePath();
+      fillStroke(c, B('#ffffff', '#ff8a1f'), 1.8);
+      c.save(); c.clip(); c.fillStyle = B('#222222', '#f4f4f4'); c.fillRect(-9, -6.5, 18, 3.4); c.restore();
+      line(c, 0, -11, 0, -15, 2, INK); ell(c, 0, -16, 2, 2); fillStroke(c, B('#cccccc', '#ffd23f'), 1);
+      c.restore();
+      c.fillStyle = Wt('#8f8f8f', '#2a76b6'); c.beginPath(); c.ellipse(bx, y + 2.2, 9, 2.6, 0, 0, Math.PI); c.fill();
+    },
+
+    // Bubble curtain: an air pipe on the tank floor sending up a wall of bubbles that sharks like to swim through.
+    bubbler(c, x, y, t = 0) {
+      line(c, x - 12, y + 6, x + 12, y + 6, 4.4, INK); line(c, x - 12, y + 6, x + 12, y + 6, 2.2, B('#9a9a9a', '#6f7f8a'));
+      for (let k = -2; k <= 2; k++) { ell(c, x + k * 5, y + 6, 0.8, 0.8); c.fillStyle = INK; c.fill(); }
+      c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,0.95)';
+      for (let k = 0; k < 14; k++) {
+        const u = (t * 0.55 + k * 0.137) % 1, bx = x - 11 + ((k * 7.3) % 22) + Math.sin(t * 3 + k) * 1.5, by = y + 4 - u * 34, r = 0.8 + u * 2.2;
+        c.globalAlpha = 1 - u * 0.75; ell(c, bx, by, r, r); c.stroke();
+      }
+      c.globalAlpha = 1;
+    },
+
+    // A floating hoop that dolphins leap through: an upright ring sitting half in the water.
+    hoop(c, x, y, t = 0) {
+      const by = y - 2 + Math.sin(t * 1.9) * 1.2;
+      c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 1.2; ell(c, x, y + 1, 14, 3.5); c.stroke();
+      c.beginPath(); c.ellipse(x, by - 11, 8, 13, 0, 0, Math.PI * 2); c.lineWidth = 5.2; c.strokeStyle = INK; c.stroke();
+      c.lineWidth = 3; c.strokeStyle = B('#ffffff', '#f2c230'); c.stroke();
+      c.lineWidth = 3; c.strokeStyle = B('#555555', '#d8433a'); c.setLineDash([3, 4]); c.stroke(); c.setLineDash([]);
+      c.fillStyle = Wt('#8f8f8f', '#2a76b6'); c.beginPath(); c.ellipse(x, by + 1.5, 10, 3, 0, 0, Math.PI); c.fill();
     },
 
     // Rope-wrapped scratching post. wobble shakes it while an animal scratches.
@@ -259,20 +316,22 @@
       c.save(); c.translate(x, y); c.scale(k * facing, k);
       const sw = moving ? Math.sin(ph) * 0.55 : 0;
       Art.shadow(c, 0, 0, 5);
-      const leg = (a, col) => { line(c, 0, -9, Math.sin(a) * 9, -9 + Math.cos(a) * 9, 2.6, INK); };
+      const legC = pantsOf(look), armC = tint.people > 0.5 ? skinOf(look) : INK;
+      const leg = a => { if (tint.people > 0.5) line(c, 0, -9, Math.sin(a) * 9, -9 + Math.cos(a) * 9, 3.6, INK); line(c, 0, -9, Math.sin(a) * 9, -9 + Math.cos(a) * 9, 2.6, legC); };
       leg(-sw); leg(sw);
       // arm behind
-      line(c, 0, -16, -Math.sin(sw) * 6, -16 + Math.cos(sw) * 6, 2.2, INK);
+      const arm = (x2, y2) => { if (tint.people > 0.5) line(c, 0, -16, x2, y2, 3.2, INK); line(c, 0, -16, x2, y2, 2.2, armC); };
+      arm(-Math.sin(sw) * 6, -16 + Math.cos(sw) * 6);
       // body
       c.beginPath();
       if (look.dress) { c.moveTo(-3, -17); c.lineTo(3, -17); c.lineTo(5, -8); c.lineTo(-5, -8); c.closePath(); }
       else { c.rect(-3.5, -17.5, 7, 9.5); }
-      fillStroke(c, look.shirt, 1.4);
+      fillStroke(c, shirtOf(look), 1.4);
       if (look.role === 'keeper') { c.beginPath(); c.moveTo(-3.5, -14); c.lineTo(3.5, -14); c.lineWidth = 1; c.strokeStyle = INK; c.stroke(); }
       Art.uniform(c, look, 'side');
       // arm in front, maybe holding a tool
       const ax = Math.sin(sw) * 6, ay = -16 + Math.cos(sw) * 6;
-      line(c, 0, -16, ax, ay, 2.2, INK);
+      arm(ax, ay);
       if (look.role === 'janitor' && (look.skill || 1) >= 4) {
         // a wide push broom
         line(c, ax - 1, ay - 7, ax + 6, ay + 9, 1.8, '#555');
@@ -285,12 +344,12 @@
         c.beginPath(); c.moveTo(ax - 2.5, ay); c.lineTo(ax + 2.5, ay); c.lineTo(ax + 2, ay + 5); c.lineTo(ax - 2, ay + 5); c.closePath(); fillStroke(c, '#999', 1);
       }
       // head + hair/hat
-      ell(c, 0.5, -21.5, 3.6, 3.6); fillStroke(c, WHITE, 1.4);
+      ell(c, 0.5, -21.5, 3.6, 3.6); fillStroke(c, skinOf(look), 1.4);
       ell(c, 2, -22, 0.6, 0.6); c.fillStyle = INK; c.fill();
-      if (look.hat === 'cap') { c.beginPath(); c.arc(0.5, -22.5, 3.8, Math.PI, 0); c.lineTo(6, -22.5); c.closePath(); c.fillStyle = INK; c.fill(); }
-      else if (look.hat === 'safari') { c.beginPath(); c.arc(0.5, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, '#ddd', 1.2); line(c, -5, -23, 6, -23, 1.6, INK); }
-      else if (look.hat === 'hair') { c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke(); }
-      else if (look.hat === 'bun') { ell(c, -3, -24.5, 2, 2); c.fillStyle = INK; c.fill(); c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2; c.stroke(); }
+      if (look.hat === 'cap') { c.beginPath(); c.arc(0.5, -22.5, 3.8, Math.PI, 0); c.lineTo(6, -22.5); c.closePath(); c.fillStyle = capOf(look); c.fill(); c.lineWidth = 0.8; c.strokeStyle = INK; c.stroke(); }
+      else if (look.hat === 'safari') { c.beginPath(); c.arc(0.5, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, Pe('#dddddd', '#cdb27a'), 1.2); line(c, -5, -23, 6, -23, 1.6, INK); }
+      else if (look.hat === 'hair') { c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2.2; c.strokeStyle = hairOf(look); c.stroke(); }
+      else if (look.hat === 'bun') { ell(c, -3, -24.5, 2, 2); c.fillStyle = hairOf(look); c.fill(); c.beginPath(); c.arc(0.3, -22.5, 3.9, Math.PI * 0.9, Math.PI * 1.9); c.lineWidth = 2; c.strokeStyle = hairOf(look); c.stroke(); }
       Art.headGear(c, look, 'side');
       c.restore();
     },
@@ -301,18 +360,20 @@
       c.save(); c.translate(x, y); c.scale(k, k);
       Art.shadow(c, 0, 0, 5);
       const step = s => (moving ? Math.max(0, Math.sin(ph + (s > 0 ? Math.PI : 0))) * 2.5 : 0);
-      [-1, 1].forEach(s => line(c, s * 1.8, -9, s * 1.8, -step(s), 2.6, INK));
+      const legC = pantsOf(look), armC = tint.people > 0.5 ? skinOf(look) : INK;
+      [-1, 1].forEach(s => { if (tint.people > 0.5) line(c, s * 1.8, -9, s * 1.8, -step(s), 3.6, INK); line(c, s * 1.8, -9, s * 1.8, -step(s), 2.6, legC); });
       // body
       c.beginPath();
       if (look.dress) { c.moveTo(-3.5, -17); c.lineTo(3.5, -17); c.lineTo(5.5, -8); c.lineTo(-5.5, -8); c.closePath(); }
       else c.rect(-4.5, -17.5, 9, 9.5);
-      fillStroke(c, look.shirt, 1.4);
+      fillStroke(c, shirtOf(look), 1.4);
       if (look.role === 'keeper') line(c, -4.5, -14, 4.5, -14, 1, INK);
       Art.uniform(c, look, front ? 'front' : 'back');
       // arms swing forward and back, which from here looks like a small up-and-down
       [-1, 1].forEach(s => {
         const sw = moving ? Math.sin(ph + (s > 0 ? 0 : Math.PI)) * 1.5 : 0;
-        line(c, s * 4.8, -16.5, s * 5.6, -10.5 - sw, 2.2, INK);
+        if (tint.people > 0.5) line(c, s * 4.8, -16.5, s * 5.6, -10.5 - sw, 3.2, INK);
+        line(c, s * 4.8, -16.5, s * 5.6, -10.5 - sw, 2.2, armC);
       });
       if (look.role === 'janitor') {
         line(c, 6, -18, 6.5, -2, 1.6, '#555');
@@ -321,15 +382,15 @@
         c.beginPath(); c.moveTo(-8, -10); c.lineTo(-3.5, -10); c.lineTo(-4, -5.5); c.lineTo(-7.5, -5.5); c.closePath(); fillStroke(c, '#999', 1);
       }
       // head + hair/hat
-      ell(c, 0, -21.5, 3.6, 3.6); fillStroke(c, WHITE, 1.4);
-      const dark = (a0, a1) => { c.beginPath(); c.arc(0, -21.5, 3.8, a0, a1); c.closePath(); c.fillStyle = INK; c.fill(); };
+      ell(c, 0, -21.5, 3.6, 3.6); fillStroke(c, skinOf(look), 1.4);
+      const dark = (a0, a1, col = hairOf(look)) => { c.beginPath(); c.arc(0, -21.5, 3.8, a0, a1); c.closePath(); c.fillStyle = col; c.fill(); };
       if (front) { [-1.3, 1.3].forEach(ex => { ell(c, ex, -21.5, 0.6, 0.6); c.fillStyle = INK; c.fill(); }); }
-      if (look.hat === 'cap') { dark(Math.PI, 0); if (front) line(c, -4, -21.6, 4, -21.6, 1.6, INK); }
-      else if (look.hat === 'safari') { c.beginPath(); c.arc(0, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, '#ddd', 1.2); line(c, -5.5, -23, 5.5, -23, 1.6, INK); }
+      if (look.hat === 'cap') { dark(Math.PI, 0, capOf(look)); if (front) line(c, -4, -21.6, 4, -21.6, 1.6, capOf(look)); }
+      else if (look.hat === 'safari') { c.beginPath(); c.arc(0, -23, 3.6, Math.PI, 0); c.closePath(); fillStroke(c, Pe('#dddddd', '#cdb27a'), 1.2); line(c, -5.5, -23, 5.5, -23, 1.6, INK); }
       else if (look.hat === 'hair' || look.hat === 'bun') {
-        if (front) { c.beginPath(); c.arc(0, -21.8, 3.9, Math.PI * 1.05, Math.PI * 1.95); c.lineWidth = 2.2; c.strokeStyle = INK; c.stroke(); }
+        if (front) { c.beginPath(); c.arc(0, -21.8, 3.9, Math.PI * 1.05, Math.PI * 1.95); c.lineWidth = 2.2; c.strokeStyle = hairOf(look); c.stroke(); }
         else dark(Math.PI * 0.9, Math.PI * 2.1);
-        if (look.hat === 'bun') { ell(c, 0, -26, 2, 2); c.fillStyle = INK; c.fill(); }
+        if (look.hat === 'bun') { ell(c, 0, -26, 2, 2); c.fillStyle = hairOf(look); c.fill(); }
       }
       Art.headGear(c, look, front ? 'front' : 'back');
       c.restore();
@@ -337,17 +398,25 @@
 
     randomGuestLook() {
       const r = Math.random;
+      const pick = a => a[Math.floor(r() * a.length)];
       return {
         kid: r() < 0.25,
-        shirt: ['#fff', '#ddd', '#aaa', '#777', '#444'][Math.floor(r() * 5)],
+        shirt: pick(['#fff', '#ddd', '#aaa', '#777', '#444']),
         dress: r() < 0.25,
-        hat: ['none', 'cap', 'hair', 'bun', 'hair'][Math.floor(r() * 5)],
+        hat: pick(['none', 'cap', 'hair', 'bun', 'hair']),
+        // colors used from five stars
+        shirtC: pick(['#e04848', '#3a7bd5', '#f2c230', '#3aa55c', '#9b59b6', '#ff8a3d', '#2bb3b1', '#f06292', '#ffffff', '#6d7f99']),
+        skin: pick(['#f6d3b3', '#eabd93', '#d29a6c', '#b07850', '#83563a', '#5e3b26']),
+        hairC: pick(['#2b1b10', '#4a2e18', '#7a4e26', '#d6b05c', '#141414', '#a8462a', '#9c9c9c']),
+        capC: pick(['#c0392b', '#2c5aa0', '#1e7a46', '#f2c230', '#333333']),
+        pants: pick(['#3b4a6b', '#2f3a4f', '#6b5a3e', '#444444', '#7a8fa8', '#8a3d3d']),
       };
     },
-    staffLook(role, skill = 1) {
+    staffLook(role, skill = 1, seed = 0) {
+      const skin = ['#f6d3b3', '#eabd93', '#d29a6c', '#b07850', '#83563a', '#5e3b26'][Math.floor(rnd(seed + 3) * 6)];
       return role === 'janitor'
-        ? { shirt: '#555', hat: 'cap', role: 'janitor', skill }
-        : { shirt: '#eee', hat: 'safari', role: 'keeper', skill };
+        ? { shirt: '#555', hat: 'cap', role: 'janitor', skill, shirtC: '#4f7192', pants: '#3a5470', capC: '#26394f', skin }
+        : { shirt: '#eee', hat: 'safari', role: 'keeper', skill, shirtC: '#d9c48f', pants: '#76663f', skin };
     },
 
     // Uniform pieces earned with training. view: 'side', 'front' or 'back'. Body is the 9.5-tall box above the legs.
