@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.9';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.11';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
@@ -177,8 +177,10 @@
         && exStats().some(x => [...x.species].filter(sp => SAVANNA.includes(sp)).length >= 4) },
     basilisk: { msg: 'One of the anaconda eggs looked... different. Something ancient is now in the Animals tab.',
       test: () => S.stars >= 6 && (S.bornBy.anaconda || 0) >= 4 },
-    unicorn: { msg: 'A perfect day at the zoo! Something magical has appeared in the Animals tab.',
-      test: () => S.stars >= 6 && S.animals.length >= 30 && S.animals.every(a => a.happy >= 88 && !a.loose) && S.rep >= 86 && Object.values(S.litter).reduce((t, n) => t + n, 0) <= 5 },
+    // a big, thriving zebra herd: 10+ zebras in one exhibit, every one of them at 90+ happiness, and 5 zebra foals born here
+    unicorn: { msg: 'One of the zebra foals was born without a single stripe... and with a tiny horn. Something magical has appeared in the Animals tab!',
+      test: () => S.stars >= 6 && (S.bornBy.zebra || 0) >= 5
+        && exStats().some(x => { const herd = x.list.filter(a => a.sp === 'zebra'); return herd.length >= 10 && herd.every(a => a.happy >= 90); }) },
   };
   const MAX_STARS = STARS.length - 1;
   // Bump this whenever the star goals change: saved zoos are then re-checked against the new goals when they load.
@@ -232,6 +234,8 @@
   let selected = null;          // inspected entity or tile
   const view = { x: 0, y: 0, zoom: 1.2 };
   let tool = 'look', toolSpecies = null;
+  let buySex = 'F';             // whether the next animal bought is female or male (picked in the Animals tab)
+  const sexWord = a => (a.sex === 'M' ? 'male' : 'female'), sexSign = a => (a.sex === 'M' ? '♂' : '♀');
   let lastExStats = [];
 
   function newState() {
@@ -401,11 +405,11 @@
   }
 
   // ---------- animals ----------
-  function makeAnimal(sp, x, y, baby) {
+  function makeAnimal(sp, x, y, baby, sex) {
     const used = new Set(S.animals.map(a => a.name));
     const free = NAMES.filter(n => !used.has(n));
     const name = (free.length ? free : NAMES)[Math.floor(Math.random() * (free.length || NAMES.length))];
-    return { id: S.nextId++, sp, baby: !!baby, age: 0, x, y, path: [], wait: Math.random() * 2, phase: Math.random() * 6,
+    return { id: S.nextId++, sp, sex: sex === 'M' || sex === 'F' ? sex : (Math.random() < 0.5 ? 'F' : 'M'), bc: false, baby: !!baby, age: 0, x, y, path: [], wait: Math.random() * 2, phase: Math.random() * 6,
       facing: Math.random() < 0.5 ? 1 : -1, hunger: 10, happy: 60, name, ex: -1, moving: false };
   }
 
@@ -820,8 +824,10 @@
       const bySp = {};
       x.list.forEach(a => { (bySp[a.sp] = bySp[a.sp] || []).push(a); });
       Object.entries(bySp).forEach(([sp, list]) => {
+        // it takes an adult female and an adult male who isn't on birth control
         const adults = list.filter(a => !a.baby), babies = list.length - adults.length;
-        if (adults.length < 2 || babies >= Math.max(1, Math.floor(adults.length / 2))) return;
+        const moms = adults.filter(a => a.sex === 'F'), dads = adults.filter(a => a.sex === 'M' && !a.bc);
+        if (!moms.length || !dads.length || babies >= Math.max(1, Math.min(moms.length, Math.floor(adults.length / 2)))) return;
         const avg = list.reduce((s, a) => s + a.happy, 0) / list.length;
         const roomy = E.tiles.length >= x.need + SPEC[sp].space * 0.5;
         if (!approved(sp, true)) {
@@ -830,10 +836,10 @@
           return;
         }
         if (avg >= 70 && roomy && Math.random() < 0.3) {
-          const mom = adults[Math.floor(Math.random() * adults.length)];
-          const b = makeAnimal(sp, mom.x - 10, mom.y + 2, true); b.ex = id; b.happy = 80;
+          const mom = moms[Math.floor(Math.random() * moms.length)];
+          const b = makeAnimal(sp, mom.x - 10, mom.y + 2, true); b.ex = id; b.happy = Math.round(avg);   // as content as the herd it's born into
           S.animals.push(b); S.today.births++; S.totals.births++; S.bornBy[sp] = (S.bornBy[sp] || 0) + 1;
-          log(`A baby ${lowName(Z.SPECIES[sp])} named ${b.name} was born!`);
+          log(`A baby ${lowName(Z.SPECIES[sp])} named ${b.name} was born! It's a ${b.sex === 'F' ? 'girl' : 'boy'}.`);
         }
       });
     });
@@ -1146,7 +1152,7 @@
     if (S.money < d.hire) { toast(`Not enough money to hire a ${lowName(d)}.`); return; }
     spend('staff', d.hire);
     const c = center(idx(ENT.x, ENT.y));
-    S.staff.push({ id: S.nextId++, type, x: c.x, y: c.y, path: [], phase: 0, facing: 1, workT: 0, state: 'idle', ex: -1, skill: 1,
+    S.staff.push({ id: S.nextId++, type, x: c.x, y: c.y, path: [], phase: 0, facing: 1, workT: 0, state: 'idle', ex: -1, skill: 1, assign: null,
       name: NAMES[Math.floor(Math.random() * NAMES.length)] });
     log(`Hired a ${lowName(d)}.`);
     renderPanel();
@@ -1219,6 +1225,116 @@
   const unreachableUntil = {};
   const nowT = () => S.day * DAY + S.time;
 
+  // ---------- keeper assignments ----------
+  // A keeper is either set to Auto or assigned to one exhibit (s.assign holds a tile inside that exhibit, so it
+  // survives exhibits being renumbered). Assigned keepers stay with their exhibit. Auto keepers split the rest of
+  // the exhibits with animals as evenly as possible (counts differ by at most one), in neighboring groups, with
+  // sharks, orcas and other rare animals handed to keepers trained to look after them.
+  // The result is s.duty: the exhibit ids that keeper looks after.
+  let dutyKey = '';
+  const assignedEx = s => (s.assign != null && exOf[s.assign] >= 0 ? exOf[s.assign] : -1);
+  const needsSpecialist = id => S.animals.some(a => a.ex === id && !a.loose && SPECIALIST.has(a.sp));
+  function keeperDuties() {
+    const ks = S.staff.filter(s => s.type === 'keeper');
+    // an assigned keeper whose exhibit was taken down goes back to Auto
+    ks.forEach(s => {
+      if (s.assign == null || assignedEx(s) >= 0) return;
+      const moved = neighbors(s.assign).find(n => exOf[n] >= 0);     // a fence went over the tile we remembered: use the one beside it
+      if (moved != null) { s.assign = moved; return; }
+      s.assign = null; log(`${s.name}'s exhibit is gone, so ${s.name} is back on Auto.`);
+    });
+    const live = EX.filter(E => S.animals.some(a => a.ex === E.id && !a.loose)).map(E => E.id);
+    const key = pathVer + '|' + live.join(',') + '|' + live.map(id => +needsSpecialist(id)).join('') + '|' +
+      ks.map(s => `${s.id}:${assignedEx(s)}:${skillOf(s) >= SPECIALIST_SKILL ? 1 : 0}`).join(',');
+    if (key === dutyKey) return;
+    dutyKey = key;
+    ks.forEach(s => { if (s.duty && s.duty.length) s.lastDuty = s.duty; });
+    const manual = ks.filter(s => assignedEx(s) >= 0), auto = ks.filter(s => assignedEx(s) < 0);
+    manual.forEach(s => { s.duty = [assignedEx(s)]; });
+    auto.forEach(s => { s.duty = []; });
+    if (!auto.length) return;
+    const covered = new Set(manual.map(assignedEx));
+    let pool = live.filter(id => !covered.has(id));
+    if (!pool.length) pool = live.slice();            // everything has its own keeper already: Auto keepers back them up
+    if (!pool.length) return;
+    // order the exhibits in a sweep around the entrance, so each keeper's share sits side by side
+    const ent = center(idx(ENT.x, ENT.y));
+    const mid = id => { const t = EX[id].tiles; return t.reduce((m, i) => { const c = center(i); return { x: m.x + c.x / t.length, y: m.y + c.y / t.length }; }, { x: 0, y: 0 }); };
+    const spot = {}; pool.forEach(id => { spot[id] = mid(id); });
+    pool.sort((p, q) => Math.atan2(spot[p].y - ent.y, spot[p].x - ent.x) - Math.atan2(spot[q].y - ent.y, spot[q].x - ent.x));
+    const groups = [];
+    if (pool.length >= auto.length) {
+      // even shares: everyone gets the same number, and the leftovers go one each to the first few
+      const base = Math.floor(pool.length / auto.length), extra = pool.length % auto.length;
+      let k = 0;
+      for (let g = 0; g < auto.length; g++) { const n = base + (g < extra ? 1 : 0); groups.push(pool.slice(k, k + n)); k += n; }
+    } else {
+      // more keepers than exhibits: one exhibit each, and the extra keepers pair up on the busiest exhibits
+      pool.forEach(id => groups.push([id]));
+      const busy = pool.slice().sort((p, q) => S.animals.filter(a => a.ex === q).length - S.animals.filter(a => a.ex === p).length);
+      for (let g = pool.length; g < auto.length; g++) groups.push([busy[(g - pool.length) % busy.length]]);
+    }
+    // hand each group to the closest keeper, but keep keepers on exhibits they already had where possible
+    const gmid = grp => grp.reduce((m, id) => ({ x: m.x + spot[id].x / grp.length, y: m.y + spot[id].y / grp.length }), { x: 0, y: 0 });
+    const pairs = [];
+    auto.forEach(s => groups.forEach((grp, g) => {
+      const c = gmid(grp), kept = grp.filter(id => (s.lastDuty || []).includes(id)).length;
+      pairs.push([Math.hypot(c.x - s.x, c.y - s.y) - kept * T * 40, s, g]);
+    }));
+    pairs.sort((p, q) => p[0] - q[0]);
+    const taken = new Set(), got = new Set();
+    pairs.forEach(([, s, g]) => { if (!got.has(s) && !taken.has(g)) { s.duty = groups[g].slice(); got.add(s); taken.add(g); } });
+    // rare animals need a trained keeper: swap them over to one
+    const trained = auto.filter(s => skillOf(s) >= SPECIALIST_SKILL);
+    if (!trained.length) return;
+    auto.filter(s => skillOf(s) < SPECIALIST_SKILL).forEach(s => {
+      s.duty.filter(needsSpecialist).forEach(e => {
+        let best = null;
+        trained.forEach(t => t.duty.forEach(f => {
+          if (needsSpecialist(f)) return;
+          const d = Math.hypot(spot[e].x - spot[f].x, spot[e].y - spot[f].y);
+          if (!best || d < best.d) best = { t, f, d };
+        }));
+        if (best) { s.duty[s.duty.indexOf(e)] = best.f; best.t.duty[best.t.duty.indexOf(best.f)] = e; }
+        else { const t = trained.reduce((m, x) => (x.duty.length < m.duty.length ? x : m), trained[0]); s.duty = s.duty.filter(x => x !== e); if (!t.duty.includes(e)) t.duty.push(e); }
+      });
+    });
+  }
+  const dutyOf = s => { keeperDuties(); return s.duty || []; };
+  // an Auto keeper only steps into someone else's exhibit when it's this bad off and nobody is there
+  const KEEPER_HELP = 70;
+  // short names for exhibits, numbered the same way as the Exhibits tab
+  function exhibitLabel(id, st) {
+    const E = EX[id]; if (!E) return 'an exhibit';
+    return `${id + 1}. ${exhibitName(E, (st || (lastExStats.length === EX.length ? lastExStats : exStats()))[id])}`;
+  }
+  function assignKeeper(s, exId) {
+    if (!s || s.type !== 'keeper') return;
+    const E = EX[exId];
+    if (!E) { if (s.assign == null) return; s.assign = null; log(`${s.name} is on Auto and will share the exhibits with the other keepers.`); }
+    else {
+      // remember a tile near the middle, well away from the fences
+      const t = E.landTiles.length ? E.landTiles : E.tiles, mx = t.reduce((m, i) => m + tx(i), 0) / t.length, my = t.reduce((m, i) => m + ty(i), 0) / t.length;
+      s.assign = t.reduce((b, i) => (Math.hypot(tx(i) - mx, ty(i) - my) < Math.hypot(tx(b) - mx, ty(b) - my) ? i : b), t[0]);
+      log(`${s.name} is now assigned to exhibit ${exhibitLabel(exId)}.`);
+      if (s.state === 'work' && s.ex !== exId && !s.workT) { s.state = 'leave'; s.path = []; }
+    }
+    dutyKey = ''; renderPanel();
+  }
+  // the Auto / exhibit dropdown shown for each keeper
+  function assignSelect(s, st) {
+    const cur = assignedEx(s);
+    return `<select data-assign="${s.id}" aria-label="What ${escapeHtml(s.name)} looks after"><option value="-1">Auto (share evenly)</option>` +
+      EX.map(E => `<option value="${E.id}" ${E.id === cur ? 'selected' : ''}>Only exhibit ${escapeHtml(exhibitLabel(E.id, st))}</option>`).join('') + '</select>';
+  }
+  function wireAssign(el) { el.querySelectorAll('[data-assign]').forEach(b => b.onchange = () => assignKeeper(S.staff.find(x => x.id === +b.dataset.assign), +b.value)); }
+  // where an idle keeper waits: a path tile beside a gate into one of their exhibits
+  const besideOwn = duty => j => S.tiles[j] === PATH && neighbors(j).some(n => gateOf[n] && gateOf[n].some(e => duty.includes(e)));
+  function nearOwn(s, duty) {
+    const here = tileAt(s.x, s.y), hx = tx(here), hy = ty(here);
+    return duty.some(e => EX[e] && EX[e].tiles.some(i => Math.max(Math.abs(tx(i) - hx), Math.abs(ty(i) - hy)) <= 3));
+  }
+
   // Portions each species in an exhibit still needs: hungry animals minus food already out.
   function foodNeeded(ex) {
     const st = exStats()[ex], need = {};
@@ -1290,27 +1406,43 @@
             unreachableUntil[src] = nowT() + 20;
           }
         }
-        // one keeper per exhibit, but a messy exhibit can take a second (and a third) keeper to help clean it
+        // each keeper looks after their own exhibits (see keeperDuties). Only the keepers sharing an exhibit work it
+        // together, and a messy one can take a second (and a third) of them to help clean it.
+        const duty = dutyOf(s), dedicated = assignedEx(s) >= 0;
         const working = {}; S.staff.forEach(o => { if (o !== s && o.type === 'keeper' && o.state === 'work') working[o.ex] = (working[o.ex] || 0) + 1; });
         let bestE = -1, bestScore = 8, helper = false;     // an idle keeper will deal with even one dropping
         st.forEach((x, id) => {
           if (!x.list.length || (unreachableUntil[id] || 0) > nowT()) return;
-          const n = working[id] || 0, room = 1 + (x.poop >= 2 ? 1 : 0) + (x.poop >= 6 ? 1 : 0);
+          const own = !duty.length || duty.includes(id);
+          if (!own && dedicated) return;                     // assigned keepers stay with their exhibit
+          const n = working[id] || 0, room = own ? 1 + (x.poop >= 2 ? 1 : 0) + (x.poop >= 6 ? 1 : 0) : 1;
           if (n >= room) return;
           if (skillOf(s) < SPECIALIST_SKILL && [...x.species].some(sp => SPECIALIST.has(sp))) return;   // leave these to trained keepers
-          const hungry = n ? [] : x.list.filter(a => a.hunger > 22 && !(x.food[a.sp] > 0));
+          // hungry animals still waiting for a portion (food already out only covers some of a big herd)
+          const need = n ? {} : foodNeeded(id), hungry = x.list.filter(a => a.hunger > 22 && need[a.sp] && need[a.sp].n > 0);
           const score = hungry.reduce((m, a) => Math.max(m, a.hunger), 0) + x.poop * 9 - n * 30;
+          if (!own && score < KEEPER_HELP) return;           // someone else's exhibit: only when it's falling behind
           if (score > bestScore) { bestScore = score; bestE = id; helper = n > 0; }
         });
         if (bestE >= 0) {
           const r = bfs(here, keeperPass(bestE), workSpot(bestE)) || bfs(here, anyPass, workSpot(bestE));
-          if (r) { s.ex = bestE; s.state = 'work'; s.fed = helper; s.path = toPoints(r); s.task = helper ? 'Going to help clean an exhibit' : 'Walking to an exhibit'; }
+          if (r) { s.ex = bestE; s.state = 'work'; s.fed = helper; s.path = toPoints(r);
+            s.task = duty.length && !duty.includes(bestE) ? `Helping out at exhibit ${exhibitLabel(bestE, st)}` : helper ? 'Going to help clean an exhibit' : `Walking to exhibit ${exhibitLabel(bestE, st)}`; }
           else {
             unreachableUntil[bestE] = nowT() + 20;
             if (!s.warned) { log('A keeper can\'t reach an exhibit. Make sure there\'s a path or open grass beside its fence.'); s.warned = true; }
           }
         }
-        if (s.state === 'idle') { s.task = 'Waiting for a job'; wander(s); }
+        if (s.state === 'idle') {
+          // wait by their own exhibits instead of drifting around the zoo
+          const mine = duty.filter(e => EX[e]);
+          if (mine.length && !nearOwn(s, mine)) {
+            const r = bfs(here, j => S.tiles[j] === PATH || openGround(j), besideOwn(mine));
+            if (r && r.length) { s.path = toPoints(r); s.task = `Heading back to exhibit ${exhibitLabel(mine[0], st)}`; return; }
+          }
+          s.task = mine.length ? `Keeping an eye on exhibit${mine.length > 1 ? 's' : ''} ${mine.map(e => e + 1).join(', ')}` : 'Waiting for a job';
+          wander(s);
+        }
       } else if (s.state === 'work') {
         if (!EX[s.ex]) { s.state = 'leave'; return; }
         const E = EX[s.ex], land = j => exOf[j] === s.ex && isDry(S.tiles[j]);
@@ -1493,6 +1625,7 @@
       if (g.gone) { guestComments(g); if (selected && selected.ref === g) selected = null; }
       return !g.gone;
     });
+    keeperDuties();
     S.staff.forEach(s => (s.type === 'janitor' ? updateJanitor(s, dt) : updateKeeper(s, dt, st)));
     updateFx(dt);
     card = scorecard(st);
@@ -1594,9 +1727,9 @@
       const why = cantLiveAt(null, i, sp); if (why) return toast(why);
       if (!canAfford(d.cost)) return;
       spend('animals', d.cost);
-      const c = center(i), a = makeAnimal(sp, c.x, c.y, false); a.ex = exOf[i];
+      const c = center(i), a = makeAnimal(sp, c.x, c.y, false, buySex); a.ex = exOf[i];
       S.animals.push(a);
-      log(`Welcome ${a.name} the ${lowName(d)}!`);
+      log(`Welcome ${a.name} the ${lowName(d)} (${sexWord(a)})!`);
     }
   }
 
@@ -1646,6 +1779,15 @@
     log(`${a.name} the ${lowName(d)} moved to another zoo for ${money(value)}.`);
     selected = null; renderPanel();
   }
+  // birth control for males: they stop fathering babies until it's stopped again
+  function setBirthControl(list, on) {
+    list = list.filter(a => a.sex === 'M' && !!a.bc !== on);
+    if (!list.length) return;
+    list.forEach(a => { a.bc = on; });
+    const who = list.length === 1 ? `${list[0].name} the ${lowName(Z.SPECIES[list[0].sp])}` : `${list.length} males`;
+    log(on ? `${who} ${list.length === 1 ? 'is' : 'are'} now on birth control.` : `${who} ${list.length === 1 ? 'is' : 'are'} off birth control and can father babies again.`);
+    renderPanel();
+  }
   function renameAnimal(a, name) {
     name = name.replace(/\s+/g, ' ').trim().slice(0, 16);
     if (!name || name === a.name) return;
@@ -1681,9 +1823,9 @@
     return {
       v: 1, starRules: STAR_RULES, money: S.money, stars: S.stars, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
       tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
-      animals: S.animals.map(a => ({ id: a.id, sp: a.sp, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
+      animals: S.animals.map(a => ({ id: a.id, sp: a.sp, sex: a.sex, bc: a.bc || undefined, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
         hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2), loose: a.loose || undefined, moveTo: a.moveTo ?? undefined })),
-      staff: S.staff.map(s => ({ id: s.id, type: s.type, name: s.name, skill: s.skill || 1 })),
+      staff: S.staff.map(s => ({ id: s.id, type: s.type, name: s.name, skill: s.skill || 1, assign: s.assign ?? undefined })),
       litter: S.litter, poop: S.poop, food: S.food, nextId: S.nextId, log: S.log.slice(0, 20), totals: S.totals, today: S.today,
       history: S.history, comments: S.comments, plushSales: S.plushSales,
     };
@@ -1700,6 +1842,9 @@
     s.tiles = o.tiles.split('').map(Number);
     s.items = o.items.split('').map(ch => CHAR_ITEM[ch] || null);
     s.animals = (o.animals || []).filter(a => Z.SPECIES[a.sp]).map(a => Object.assign({ path: [], wait: 1, phase: 0, facing: 1, ex: -1, moving: false }, a));
+    // saves from before animals were male or female: alternate female, male, female... within each species, so pairs stay pairs
+    const seenSp = {};
+    s.animals.forEach(a => { if (a.sex !== 'M' && a.sex !== 'F') { const k = seenSp[a.sp] = (seenSp[a.sp] || 0) + 1; a.sex = k % 2 ? 'F' : 'M'; } });
     const c = center(idx(ENT.x, ENT.y));
     s.staff = (o.staff || []).filter(x => STAFF[x.type]).map(x => Object.assign({ x: c.x, y: c.y, path: [], phase: 0, facing: 1, workT: 0, state: 'idle', ex: -1 }, x));
     return s;
@@ -1981,6 +2126,11 @@
       ctx.fillStyle = 'rgba(0,0,0,0.10)';
       zoneTiles[selected.ref.zone].forEach(i => ctx.fillRect(tx(i) * T, ty(i) * T, T, T));
     }
+    if (selected && selected.kind === 'staff' && selected.ref.type === 'keeper') {
+      // shade the exhibits this keeper looks after
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      dutyOf(selected.ref).forEach(e => EX[e] && EX[e].tiles.forEach(i => ctx.fillRect(tx(i) * T, ty(i) * T, T, T)));
+    }
     if (selected && selected.tile >= 0 && !selected.ref) {
       const E = EX[exOf[selected.tile]];
       if (E) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; E.tiles.forEach(i => ctx.fillRect(tx(i) * T, ty(i) * T, T, T)); }
@@ -2165,7 +2315,7 @@
     else if (COST[tool]) text = `${ITEM_NAME[tool][0].toUpperCase() + ITEM_NAME[tool].slice(1)} ${money(COST[tool])}`;
     else if (tool === 'remove') text = 'Remove (items refund half)';
     else if (tool === 'move' && moving) text = `Move ${moving.name} here`;
-    else if (tool === 'animal' && toolSpecies) text = `${Z.SPECIES[toolSpecies].name} ${money(Z.SPECIES[toolSpecies].cost)}, click inside an exhibit`;
+    else if (tool === 'animal' && toolSpecies) text = `${buySex === 'M' ? '♂ Male' : '♀ Female'} ${lowName(Z.SPECIES[toolSpecies])} ${money(Z.SPECIES[toolSpecies].cost)}, click inside an exhibit`;
     if (!text || hover < 0) { tip.style.display = 'none'; return; }
     tip.textContent = text; tip.style.display = 'block';
     tip.style.left = (e.offsetX + 14) + 'px'; tip.style.top = (e.offsetY + 14) + 'px';
@@ -2229,7 +2379,8 @@
     const rank = id => Z.SPECIES[id].secret ? 9 : starOf('animals', id);
     const shown = id => Z.SPECIES[id].secret ? !!S.secrets[id] : !STARS[starOf('animals', id)].hidden || S.stars >= starOf('animals', id);
     const order = Z.ids.filter(shown).sort((x, y) => rank(x) - rank(y) || Z.SPECIES[x].cost - Z.SPECIES[y].cost);
-    $$('animals').innerHTML = order.map(id => {
+    $$('animals').innerHTML = `<div class="sexpick" role="group" aria-label="Buy a female or a male"><small>Buying a</small>
+      <button data-sex="F" title="The next animal you buy will be female">♀ Female</button><button data-sex="M" title="The next animal you buy will be male">♂ Male</button></div><span class="sep"></span>` + order.map(id => {
       const d = Z.SPECIES[id], ok = approved(id, false);
       return `<button class="critter" data-tool="animal" data-sp="${id}" ${ok ? '' : 'disabled'}
         title="${d.name}: wants ${d.wants.map(wantName).join(', ')}">
@@ -2261,6 +2412,10 @@
       if (clean < 70) issues.push('Needs cleaning');
       [...new Set(parts.flatMap(p => (p.notes || []).filter(t => /^Needs /.test(t))))].forEach(t => issues.push(t));
       if (list.some(a => SPECIALIST.has(a.sp)) && !skilledKeeper()) issues.push(`Needs a keeper trained to skill ${SPECIALIST_SKILL}`);
+    }
+    if (n) {
+      const ks = S.staff.filter(k => k.type === 'keeper');
+      if (ks.length && !ks.some(k => dutyOf(k).includes(E.id))) issues.push('No keeper looks after it');
     }
     if (!E.reachable) issues.push('Hard for keepers to reach');
     return { n, happy: n ? list.reduce((t, a) => t + a.happy, 0) / n : null, wants: avg(p => p.wants), space: avg(p => p.space),
@@ -2301,6 +2456,7 @@
       el.textContent = `${n} on staff`;
     });
   }
+  function showBuySex() { document.querySelectorAll('#tray [data-sex]').forEach(b => b.classList.toggle('on', b.dataset.sex === buySex)); }
   function setSpeed(n) {
     S.speed = n;
     document.querySelectorAll('#speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === n));
@@ -2378,11 +2534,11 @@
     }
     if (panelMode === 'staff') {
       $('panel-title').textContent = 'Staff & training';
-      const total = S.staff.reduce((t, x) => t + wageOf(x), 0);
+      const total = S.staff.reduce((t, x) => t + wageOf(x), 0), stx = lastExStats.length === EX.length ? lastExStats : exStats();
       const row = x => {
         const k = x.skill || 1, max = k >= MAX_SKILL;
         return `<div class="staffrow"><canvas width="44" height="60" data-staff="${x.id}"></canvas><div class="who"><b>${escapeHtml(x.name)}</b> <span class="skill" title="Skill ${k} of ${MAX_SKILL}">${'★'.repeat(k)}${'☆'.repeat(MAX_SKILL - k)}</span>
-          <small>${rankOf(x)}. ${escapeHtml(x.task || 'Getting started')}</small><small>${money(wageOf(x))}/day${max ? '' : `, ${money(Math.round(STAFF[x.type].wage * (1 + 0.3 * k)))}/day after training`}</small></div>
+          <small>${rankOf(x)}. ${escapeHtml(x.task || 'Getting started')}</small><small>${money(wageOf(x))}/day${max ? '' : `, ${money(Math.round(STAFF[x.type].wage * (1 + 0.3 * k)))}/day after training`}</small>${x.type === 'keeper' ? assignSelect(x, stx) : ''}</div>
           <button data-train="${x.id}" ${max ? 'disabled' : ''}>${max ? 'Fully trained' : `Train ${money(trainCost(x))}`}</button>
           <button data-fire="${x.id}" title="Let go">X</button></div>`;
       };
@@ -2396,7 +2552,7 @@
         }).join('');
       el.querySelectorAll('[data-hire]').forEach(b => b.onclick = () => { hire(b.dataset.hire); renderTray(); });
       el.querySelectorAll('[data-train]').forEach(b => b.onclick = () => train(S.staff.find(x => x.id === +b.dataset.train)));
-      drawStaffPortraits();
+      drawStaffPortraits(); wireAssign(el);
       el.querySelectorAll('[data-fire]').forEach(b => b.onclick = () => { fire(S.staff.find(x => x.id === +b.dataset.fire)); openPanel('staff'); renderTray(); });
       return;
     }
@@ -2462,6 +2618,7 @@
         <li>Buy <b>animals</b> and click them into the exhibit. Give each one enough room.</li>
         <li>Herd and flock animals (like zebras, penguins, flamingos, and monkeys) are happiest in a group of their own kind. Solitary animals (like bears, snow leopards, and polar bears) like to live alone or in pairs. Click an animal to see how it feels about its company.</li>
         <li>Hire <b>keepers</b> to put out food and clean exhibits, and <b>janitors</b> to sweep litter. Janitors split the paths between them, so each looks after their own area (click one to see it). Food costs money each time a keeper puts it out.</li>
+        <li>Keepers start on <b>Auto</b>: the exhibits with animals are shared out evenly between them, so each looks after their own few (click a keeper to see theirs shaded). To give an exhibit its own keeper, click the keeper and pick an exhibit, or pick a keeper from the exhibit's panel. Assigned keepers stay with that exhibit, and Auto keepers share out the rest.</li>
         <li>Toys (a <b>ball</b>, an <b>exercise wheel</b>, or a <b>scratching post</b>) make animals a little happier. Each animal has favorite kinds of tree and toy.</li>
         <li>Cold animals like penguins, snow leopards, and polar bears want a <b>snowy</b> floor. Paint snow over at least half of the exhibit.</li>
         <li>Sharks and orcas live in <b>tank water</b> (at least 12 tiles, inside a fence). They need lots of room, costly food, and a keeper trained to skill ${SPECIALIST_SKILL}. Orcas need company.</li>
@@ -2477,7 +2634,8 @@
         <li>Build a <b>gift shop</b> next to a path. Guests may buy a stuffed version of their favorite animal.</li>
         <li>Build an <b>education center</b> next to a path. Guests who visit learn a fact and enjoy the exhibits more.</li>
         <li>Click an animal to see how it's doing, give it a new name, or <b>move</b> it to another exhibit. A keeper will walk it over.</li>
-        <li>Two happy adults of the same species with spare room may have a <b>baby</b>. Babies grow up in ${GROW_DAYS} days.</li>
+        <li>Every animal is <b>female or male</b>. Pick which one you're buying at the left of the Animals tab. A happy adult female and male of the same species with spare room may have a <b>baby</b> (a girl or a boy). Babies grow up in ${GROW_DAYS} days.</li>
+        <li>Too many babies? Click a male and give him <b>birth control</b>, or do all the males in an exhibit at once from the exhibit's panel. Stop it any time.</li>
         <li>Too crowded? Sell an animal to another zoo. You only get back a little of what it cost.</li></ol>
         <p class="muted">Move around by dragging, or sliding two fingers on a trackpad. Pinch to zoom (with a mouse, hold Ctrl or ⌘ and scroll), or use the + and − buttons. Space pauses. Esc goes back to the look tool.</p>`;
       return;
@@ -2491,7 +2649,7 @@
         const doing = a.transit ? 'Being moved to a new exhibit' : a.loose ? (a.ledBy != null ? 'Being led home by a keeper' : 'Got out! Waiting for a keeper') : a.act === 'eat' ? 'Eating' : a.act === 'play' ? `Playing with the ${ITEM_NAME[a.toy] || 'ball'}` : a.goal === 'food' ? 'Heading to the food' :
           a.goal === 'toy' ? 'Going to play' : a.hunger > 60 ? 'Hungry, waiting for a keeper' : 'Wandering around';
         const diet = DIET[a.sp];
-        el.innerHTML = `<div class="card"><b>${a.baby ? `Baby, grows up in ${Math.max(1, Math.ceil(GROW_DAYS - a.age))} day(s)` : 'Adult'}</b><br>
+        el.innerHTML = `<div class="card"><b>${sexSign(a)} ${capital(sexWord(a))} ${a.baby ? `baby, grows up in ${Math.max(1, Math.ceil(GROW_DAYS - a.age))} day(s)` : 'adult'}</b>${a.sex === 'M' && a.bc ? ' <small>(on birth control)</small>' : ''}<br>
           <small>${doing}. Eats ${diet.food}, ${money(diet.cost * (a.baby ? 0.5 : 1))} a meal.</small>
           <div class="row">Happiness ${bar(a.happy)} ${Math.round(a.happy)}</div>
           <div class="row">Wants ${bar(p.wants * 100)}</div>
@@ -2505,7 +2663,12 @@
           <div class="card"><b>Name</b><br><input id="nm" maxlength="16" value="${escapeHtml(a.name)}" aria-label="Animal name"> <button id="b-name">Rename</button></div>
           <div class="card">${a.moveTo != null ? (a.transit ? '<small>On the way to its new exhibit.</small>' : '<small>Waiting for a keeper to move it.</small><br><button id="b-unmove">Cancel the move</button>')
             : `<button id="b-move" ${a.loose ? 'disabled' : ''}>Move to another exhibit</button>`}</div>
+          <div class="card"><b>Breeding</b><br>${a.sex === 'M'
+            ? `<small>${a.bc ? `On birth control: ${a.name} won't father any babies.` : `Can father babies with the females in his exhibit${a.baby ? ' once he grows up' : ''}.`}</small><br>
+              <button id="b-bc">${a.bc ? 'Stop birth control' : 'Give birth control'}</button>`
+            : `<small>${a.baby ? 'Can have babies once she grows up' : 'Can have a baby'} when a male not on birth control shares her exhibit and the group is happy with room to spare.</small>`}</div>
           <div class="card"><button id="b-sell">Sell to another zoo for ${money(d.cost * (a.baby ? SELL_BABY : SELL_ADULT))}</button></div>`;
+        if ($('b-bc')) $('b-bc').onclick = () => setBirthControl([a], !a.bc);
         if ($('b-move')) $('b-move').onclick = () => startMove(a);
         if ($('b-unmove')) $('b-unmove').onclick = () => { a.moveTo = null; renderPanel(); };
         $('b-sell').onclick = () => sellAnimal(a);
@@ -2517,12 +2680,18 @@
         $('panel-title').textContent = `${s.name}, ${rankOf(s).toLowerCase()}`;
         const k = s.skill || 1;
         if (s.type === 'janitor') janitorZones();
-        const area = s.type === 'janitor' && s.zone >= 0 && zoneTiles[s.zone] ? `<br><small>Looks after ${zoneTiles[s.zone].length} of the path tiles (shaded on the map)</small>` : '';
+        let area = s.type === 'janitor' && s.zone >= 0 && zoneTiles[s.zone] ? `<br><small>Looks after ${zoneTiles[s.zone].length} of the path tiles (shaded on the map)</small>` : '';
+        if (s.type === 'keeper') {
+          const duty = dutyOf(s).filter(e => EX[e]), stx = lastExStats.length === EX.length ? lastExStats : exStats();
+          area = `<br><small>${duty.length ? `Looks after exhibit${duty.length > 1 ? 's' : ''} ${duty.map(e => escapeHtml(exhibitLabel(e, stx))).join(', ')} (shaded on the map)` : 'No exhibits to look after yet'}</small>
+            <br><small>${assignedEx(s) >= 0 ? 'Assigned: stays with this exhibit.' : 'Auto: shares the exhibits evenly with the other Auto keepers.'}</small><br>${assignSelect(s, stx)}`;
+        }
         el.innerHTML = `<div class="card">${escapeHtml(s.task || 'Getting started')}${area}<br><small>Skill ${k} of ${MAX_SKILL}. Wage ${money(wageOf(s))}/day</small><br>
           ${k < MAX_SKILL ? `<button id="b-train">Train to skill ${k + 1} for ${money(trainCost(s))}</button>` : '<small>Fully trained.</small>'}</div>
           <div class="card"><button id="b-fire">Let ${escapeHtml(s.name)} go</button></div>`;
         $('b-fire').onclick = () => fire(s);
         if ($('b-train')) $('b-train').onclick = () => train(s);
+        wireAssign(el);
       } else if (selected.kind === 'guest') {
         const g = selected.ref;
         $('panel-title').textContent = 'Visitors';
@@ -2548,14 +2717,30 @@
       } else {
         const E = EX[exOf[selected.tile]]; if (!E) { openPanel(null); return; }
         const st = (lastExStats.length ? lastExStats : exStats())[E.id];
-        const counts = {}; st.list.forEach(a => { const k = Z.SPECIES[a.sp].name + (a.baby ? ' (baby)' : ''); counts[k] = (counts[k] || 0) + 1; });
+        // per species: adult females, adult males (and how many are on birth control), babies
+        const bySp = {};
+        st.list.forEach(a => { const c = bySp[a.sp] || (bySp[a.sp] = { f: 0, m: 0, bc: 0, kids: 0 }); if (a.baby) c.kids++; else if (a.sex === 'M') { c.m++; if (a.bc) c.bc++; } else c.f++; });
+        const counts = Object.entries(bySp).map(([sp, c]) => {
+          const n = c.f + c.m, bits = [c.f && `${c.f}♀`, c.m && `${c.m}♂${c.bc ? ` (${c.bc === c.m ? (c.m > 1 ? 'all ' : '') : c.bc + ' '}on birth control)` : ''}`, c.kids && `${c.kids} ${c.kids > 1 ? 'babies' : 'baby'}`].filter(Boolean);
+          return `${n + c.kids} ${n + c.kids > 1 ? capital(plural(sp)) : Z.SPECIES[sp].name}: ${bits.join(', ')}`;
+        });
+        const males = st.list.filter(a => a.sex === 'M'), allBc = males.length && males.every(a => a.bc);
+        const keepers = S.staff.filter(k => k.type === 'keeper'), mine = keepers.filter(k => dutyOf(k).includes(E.id));
+        const keeperCard = `<div class="card"><b>Keepers</b><br><small>${mine.length ? mine.map(k => `${escapeHtml(k.name)} (${assignedEx(k) === E.id ? 'assigned' : 'auto'})`).join(', ')
+            : keepers.length ? (st.list.length ? '<b>No keeper looks after this exhibit.</b> Set a keeper to Auto or assign one here.' : 'None yet. Auto keepers take on exhibits once animals move in.') : 'No keepers hired yet.'}</small>
+          ${keepers.length ? `<br><select id="ex-assign" aria-label="Assign a keeper to this exhibit"><option value="">Assign a keeper here...</option>${keepers.map(k => `<option value="${k.id}" ${assignedEx(k) === E.id ? 'disabled' : ''}>${escapeHtml(k.name)} (${assignedEx(k) >= 0 ? `now on ${assignedEx(k) + 1}` : 'auto'})</option>`).join('')}</select>` : ''}</div>`;
         $('panel-title').textContent = exhibitName(E, st);
         el.innerHTML = `<div class="card"><button id="b-allex">All exhibits</button></div><div class="card"><b>${E.tiles.length} tiles</b>, room for about ${Math.round(E.tiles.length - st.need)} more tiles of animals<br>
-          <small>Animals: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ') || 'none yet'}<br>
+          <small>Animals: ${counts.join('; ') || 'none yet'}<br>
           Items: ${Object.entries(E.kinds).map(([k, v]) => `${v} ${ITEM_NAME[k] || k}`).join(', ') || 'none'}<br>
           ${E.tankTiles.length ? `Tank water: ${E.tankTiles.length} tiles${E.items.tank ? '' : ' (needs 12 for an aquarium)'}<br>` : ''}${E.snow ? `Snow: ${E.snow} tiles${E.items.snow ? ', snowy enough for cold animals' : ' (cover half the land for cold animals)'}<br>` : ''}${E.aviary ? 'An aviary: birds can live here.<br>' : ''}${st.mixed ? 'A mixed exhibit.<br>' : ''}
-          Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers have to cut through other exhibits to get here.</b> A path or open grass beside the fence makes it easier.'}</small></div>`;
+          Droppings: ${st.poop}<br>Food out: ${Object.entries(st.food).map(([sp, n]) => `${n} ${DIET[sp].food} for the ${plural(sp)}`).join(', ') || 'none'}<br>${E.reachable ? 'Keepers can get in.' : '<b>Keepers have to cut through other exhibits to get here.</b> A path or open grass beside the fence makes it easier.'}</small></div>
+          ${keeperCard}
+          ${males.length ? `<div class="card"><b>Birth control</b><br><small>${males.filter(a => a.bc).length} of ${males.length} male${males.length > 1 ? 's' : ''} here on birth control.</small><br>
+            <button id="b-bcall">${allBc ? `Stop birth control for ${males.length > 1 ? 'all the males' : 'the male'}` : `Birth control for ${males.length > 1 ? 'all the males' : 'the male'} here`}</button></div>` : ''}`;
         $('b-allex').onclick = () => openPanel('exhibits');
+        if ($('b-bcall')) $('b-bcall').onclick = () => setBirthControl(males, !allBc);
+        if ($('ex-assign')) $('ex-assign').onchange = e => { const k = S.staff.find(x => x.id === +e.target.value); if (k) assignKeeper(k, E.id); };
       }
       return;
     }
@@ -2615,12 +2800,14 @@
       moving = null;
       const d = Z.SPECIES[b.dataset.sp];
       setTool('animal', b.dataset.sp);
-      toast(`${d.name}s want ${d.wants.map(wantName).join(', ')}. Click inside a fenced exhibit.`);
+      toast(`Buying a ${buySex === 'M' ? 'male' : 'female'} ${lowName(d)}. ${d.name}s want ${d.wants.map(wantName).join(', ')}. Click inside a fenced exhibit.`);
       return;
     }
     setTool(t);
   });
   document.querySelectorAll('#tray [data-hire]').forEach(b => b.onclick = () => { hire(b.dataset.hire); renderTray(); });
+  document.querySelectorAll('#tray [data-sex]').forEach(b => b.onclick = () => { buySex = b.dataset.sex; showBuySex(); });
+  showBuySex();
   $('b-staff').onclick = () => openPanel(panelMode === 'staff' ? null : 'staff');
   }
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
@@ -2659,7 +2846,7 @@
   let liveT = 0;
   function renderPanelLive() {
     liveT++;
-    const typing = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.closest('#panel');
+    const typing = document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName) && document.activeElement.closest('#panel');
     if (liveT % 4 === 0 && !typing && !document.querySelector('#panel button:active')) renderPanel();
   }
   function drawShopPreviews() {

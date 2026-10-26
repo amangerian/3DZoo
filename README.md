@@ -33,6 +33,7 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Color**: the zoo starts in black and white. Color arrives with the stars: plants at 2, water at 3, paths and buildings at 4, guests and staff at 5, and the animals at 6.
 - **Animals** need what they want, enough room, food, and a clean exhibit. All four feed their happiness.
 - **Keepers** carry food into each exhibit and clean up droppings. **Janitors** sweep litter off the paths. Both are paid daily wages.
+- **Keeper assignments**: keepers start on **Auto**, which shares the exhibits with animals evenly between them (each keeper's count is within one of the others), in neighboring groups. Sharks, orcas, and other rare animals go to a keeper trained to look after them. To give an exhibit its own keeper, click the keeper (or use Staff & training) and pick an exhibit, or pick a keeper from the exhibit's panel. Assigned keepers stay with that exhibit; Auto keepers share out the rest, and only step into someone else's exhibit when it's falling behind and nobody is there. Idle keepers wait by their own exhibits. Click a keeper to see their exhibits shaded on the map.
 - **Food** costs money every time a keeper puts it out, and each species has its own diet and price per meal. Animals walk over to the food to eat it.
 - **Toys**: animals walk over and play with the ball, run in the wheel, or use the scratching post, which gives them a small happiness boost.
 - **Guests** pay a ticket at the gate. That's the zoo's main income. Happy animals and clean paths raise the rating, and a higher rating brings more guests. Higher ticket prices bring fewer guests.
@@ -41,7 +42,9 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Money and rating**: click the money at the top for an income vs costs chart, or the rating for what's raising or lowering it and what guests are saying.
 - **Names**: click an animal to rename it.
 - **Moving animals**: click an animal, choose "Move to another exhibit," then click where it should go. A keeper walks it over (tank animals are moved straight across by the aquarium team). The same rules apply as when buying: it has to be an exhibit the animal can live in.
-- **Babies**: two happy adults of the same species, with room to spare, may have a baby at the end of a day. Babies grow up in 4 days and draw extra attention from guests.
+- **Female and male**: every animal is one or the other. Pick which you're buying with the ♀ Female / ♂ Male switch at the left of the Animals tab. Click an animal or an exhibit to see who's who.
+- **Babies**: a happy adult female and male of the same species, with room to spare, may have a baby at the end of a day. Babies are born a girl or a boy at random, grow up in 4 days, and draw extra attention from guests.
+- **Birth control**: click a male and choose "Give birth control" to stop him fathering babies, or do every male in an exhibit at once from the exhibit's panel. It can be stopped any time.
 - **Selling**: an animal can go to another zoo, but you only get back 15% of its price (10% for a baby).
 
 Controls: drag (or slide two fingers on a trackpad) to move around; pinch to zoom (with a mouse, hold Ctrl or ⌘ and scroll), or use the + and − buttons; space to pause; Esc to go back to the Look tool. Click anything with the Look tool to inspect it.
@@ -79,6 +82,13 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.11** (Oct 26, 2026)
+  - Keeper assignments: keepers on Auto (the default) split the exhibits evenly between them instead of crowding into the same exhibit or wandering. Any keeper can be assigned to one exhibit from their panel, Staff & training, or the exhibit's panel. Idle keepers wait by their own exhibits, and an exhibit nobody looks after shows up as something to fix.
+  - Animals are female or male. Choose which one you're buying in the Animals tab. Babies need an adult female and a male in the same exhibit.
+  - Birth control for males, one at a time or for a whole exhibit.
+  - Older saves: animals already in the zoo are made female and male in turn within each species, and every keeper starts on Auto.
+- **v1.10** (Oct 10, 2026)
+  - Changed what unlocks one of the secret animals.
 - **v1.9** (Oct 9, 2026)
   - Swim pools: a new floor to paint inside an exhibit. Penguins, flamingos, bears, polar bears, elephants, hippos, rhinos, and anacondas swim in it, sinking in up to their backs, and enjoy it. A pool of 3+ tiles counts as their water.
   - Exhibit signs are gone. The education part of the rating now comes from the education center.

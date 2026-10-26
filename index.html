@@ -56,6 +56,11 @@
   #tray button.critter canvas { display:block; background:#fff; border:1px solid var(--ink); margin-bottom:2px; }
   #tray button.critter.on canvas { border-color:var(--paper); }
   #tray button.hire { min-width:120px; }
+  #tray .sexpick { display:flex; flex-direction:column; justify-content:center; gap:3px; flex:0 0 auto; }
+  #tray .sexpick small { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--mid); text-align:center; }
+  #tray .sexpick button { flex-direction:row; min-width:92px; padding:3px 6px; font-weight:bold; }
+  #panel select { font:inherit; font-size:12px; border:2px solid var(--ink); background:var(--paper); color:var(--ink); padding:2px 4px; margin-top:4px; max-width:100%; }
+  .staffrow select { display:block; width:100%; }
   #tray button.locked { border-style:dashed; color:var(--mid); background:var(--paper); }
   #tray button.locked canvas { opacity:.25; }
   #tray button.locked small:not(.lock) { display:none; }
@@ -115,7 +120,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>3D ZOO <small id="ver" title="Game version">v1.9</small></h1>
+    <h1>3D ZOO <small id="ver" title="Game version">v1.11</small></h1>
     <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
@@ -185,8 +190,8 @@
     </div>
   </nav>
 </div>
-<script src="animals.js?v=1.9"></script>
-<script src="world-art.js?v=1.9"></script>
-<script src="game.js?v=1.9"></script>
+<script src="animals.js?v=1.11"></script>
+<script src="world-art.js?v=1.11"></script>
+<script src="game.js?v=1.11"></script>
 </body>
 </html>
