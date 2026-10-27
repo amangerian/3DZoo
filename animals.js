@@ -45,7 +45,7 @@
     trex:         { name: 'T. rex',       wants: ['tree', 'bush', 'water'], cost: 45000, appeal: 20, babyScale: 0.38, galleryScale: 0.42, lower: 'T. rex', plural: 'T. rexes' },
     raptor:       { name: 'Velociraptor', wants: ['bush', 'tree', 'toy'],  cost: 14000, appeal: 15, babyScale: 0.55, galleryScale: 1.0 },
     titanosaur:   { name: 'Titanosaur',   wants: ['tree', 'water'],        cost: 70000, appeal: 22, babyScale: 0.3,  galleryScale: 0.2 },
-    dragon:       { name: 'Dragon',       wants: ['tree', 'water', 'bush'], cost: 120000, appeal: 26, babyScale: 0.42, galleryScale: 0.45 },
+    dragon:       { name: 'Dragon',       wants: ['tree', 'water', 'bush'], cost: 120000, appeal: 26, babyScale: 0.36, galleryScale: 0.27 },
   };
   // Approval status lives separately so it is easy to edit.
   // adult / baby: side-view art (all nine approved by Alex on 2026-10-03).
@@ -1620,6 +1620,32 @@
   function spikes(ctx, pts, fill) {
     pts.forEach(([x, y, s]) => shape(ctx, fill, () => { ctx.beginPath(); ctx.moveTo(x - s * 0.6, y + 1); ctx.lineTo(x - s * 0.15, y - s); ctx.lineTo(x + s * 0.6, y + 1); ctx.closePath(); }, 1.4));
   }
+  // Helpers for the dragon (the wyvern, 2026-10-26).
+  // Three hooked claws on a planted foot.
+  function talons(ctx, fx, fy, w, col, n = 3) {
+    for (let j = 0; j < n; j++) {
+      const x = fx + w * 0.55 + j * w * 0.32 - w * 0.2;
+      shape(ctx, col, () => { ctx.beginPath(); ctx.moveTo(x - 1.6, fy - 1.2); ctx.quadraticCurveTo(x + 3.2, fy - 2.4, x + 4.4, fy + 1.4); ctx.lineTo(x + 0.6, fy + 0.4); ctx.closePath(); }, 1);
+    }
+  }
+  // A row of teeth along a jaw line. dir 1 points down (upper teeth), -1 points up (lower teeth).
+  function teeth(ctx, x1, x2, y, n, len, dir, col) {
+    for (let i = 0; i < n; i++) {
+      const x = x1 + (x2 - x1) * (i + 0.5) / n, l = len * (i === 1 || i === n - 2 ? 1.5 : 1);
+      shape(ctx, col, () => { ctx.beginPath(); ctx.moveTo(x - 1.6, y); ctx.lineTo(x, y + dir * l); ctx.lineTo(x + 1.6, y); ctx.closePath(); }, 0.8);
+    }
+  }
+  // Rough, torn trailing edge for a wing: points from a to b with jagged notches.
+  function raggedTo(ctx, ax, ay, bx, by, n, depth, seed) {
+    for (let i = 1; i <= n; i++) {
+      const t = i / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      const j = ((Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453) % 1 + 1) % 1;
+      const nx = -(by - ay), ny = bx - ax, nl = Math.hypot(nx, ny) || 1;
+      ctx.lineTo(x + nx / nl * depth * (0.4 + j), y + ny / nl * depth * (0.4 + j));
+      if (i < n) ctx.lineTo(x, y);
+    }
+  }
+
 
   Object.assign(ART, {
     dolphin(ctx, ph, m, baby) {
@@ -1743,46 +1769,65 @@
       ctx.restore();
     },
 
+    // The dragon (redesigned 2026-10-26 as a wyvern): a lean, hunched predator on two hind legs, head low and jaws open,
+    // tattered wings, dark tiger stripes, small clawed arms, and a barbed whip of a tail. Drawn 1.7x the old dragon's size.
     dragon(ctx, ph, m, baby, o = {}) {
-      const DR = '#8c8c8d', DF = '#6a6a6b', DB = '#d3d3d4', DW = '#b6b6b7', DS = '#4e4e4f', DH = '#f0f0f1';
-      const fly = o.fly || 0, fire = o.fire || 0, k = baby ? 1.45 : 1;
-      const flap = fly > 0.05 ? Math.sin(ph * 1.4) : 0, bob = Math.sin(ph * 2) * 1.5 * m * (1 - fly), sway = Math.sin(ph * 0.6), nod = Math.sin(ph) * 2 * m * (1 - fly);
-      if (fly < 0.2) { ell(ctx, 0, 0, 44, 5); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill(); }
-      const ws = baby ? 0.55 : 1;
-      // far wing first, behind everything
-      dragonWing(ctx, 4, -76 + bob, fly, flap * 0.9, '#9d9d9e', DF, ws * 0.9);
-      // legs: walking, or tucked up in flight
-      let d = 0;
-      if (fly < 0.5) d = quadLegs(ctx, { ph, A: 0.42 * m, B: 0.6 * m, hindX: -26, foreX: 26, hl: 20, fl: 20, w: 10, near: DR, far: DF, foot: 'paw', lf: baby ? 0.75 : 1 });
-      else [[-26, DF, 0.9], [26, DF, 0.7], [-22, DR, 1.1], [30, DR, 0.8]].forEach(([x, f, a]) => limb(ctx, x, -48, a, 16, a + 0.9, 14, 9, f, 'paw'));
-      ctx.save(); ctx.translate(0, d + bob);
-      const tail = () => tailPath(ctx, -32, -62, 12, -86, -58 + sway * 6, -128, -36 + sway * 12);
-      const body = () => ell(ctx, 0, -62, 42, 19);
-      const neck = () => { ctx.beginPath(); ctx.moveTo(26, -72); ctx.quadraticCurveTo(40, -86, 54, -100 + nod); ctx.lineTo(62, -94 + nod); ctx.quadraticCurveTo(50, -72, 36, -54); ctx.closePath(); };
-      // spade at the tip of the tail
-      const tx = -128, ty = -36 + sway * 12;
-      shape(ctx, DS, () => { ctx.beginPath(); ctx.moveTo(tx + 6, ty - 2); ctx.lineTo(tx - 6, ty - 10); ctx.lineTo(tx - 12, ty + 2); ctx.lineTo(tx - 4, ty + 8); ctx.closePath(); }, 1.6);
-      if (!baby) spikes(ctx, [[-108, -42 + sway * 10, 7], [-92, -48 + sway * 8, 8], [-74, -54 + sway * 6, 9], [-54, -62 + sway * 3, 10], [-34, -73, 11], [-14, -78, 12], [6, -78, 12], [24, -74, 10], [36, -82, 9], [46, -92 + nod, 8]], DS);
-      blob(ctx, DR, [tail, body, neck]);
-      clipTo(ctx, body, () => { ctx.fillStyle = DB; ell(ctx, 4, -44, 38, 8); ctx.fill(); ctx.strokeStyle = '#a5a5a6'; ctx.lineWidth = 1; for (let x = -26; x <= 30; x += 7) { ctx.beginPath(); ctx.moveTo(x, -50); ctx.lineTo(x + 2, -40); ctx.stroke(); } });
-      [[-14, -66], [0, -70], [14, -66]].forEach(([x, y]) => strokeLine(ctx, [x - 3, y, x, y + 3, x + 3, y], 1.2, '#6f6f70', false));
-      // head, with horns; the jaw drops open to breathe fire
-      grow(ctx, k, 58, -98 + nod, () => {
-        const y = nod;
-        [[54, -106, 40, -122], [60, -108, 50, -128]].forEach(([x1, y1, x2, y2], i) => shape(ctx, DH, () => hornPath(ctx, x1 - 3, y1 + y, x1 + 3, y1 + 1 + y, x2, y2 + y, i ? -3 : -2), 1.4));
-        ctx.save(); ctx.translate(58, -92 + y); ctx.rotate(0.15 + fire * 0.45);
-        shape(ctx, DR, () => { ctx.beginPath(); ctx.moveTo(-2, -1); ctx.lineTo(24, 1); ctx.quadraticCurveTo(26, 4, 22, 5); ctx.lineTo(0, 6); ctx.closePath(); }, 1.8);
-        if (fire > 0.1) for (let t = 0; t < 3; t++) shape(ctx, WHITE, () => { ctx.beginPath(); ctx.moveTo(6 + t * 6, 1); ctx.lineTo(7.5 + t * 6, -2); ctx.lineTo(9 + t * 6, 1); ctx.closePath(); }, 0.6);
-        ctx.restore();
-        shape(ctx, DR, () => { ctx.beginPath(); ctx.moveTo(48, -98 + y); ctx.quadraticCurveTo(56, -110 + y, 70, -104 + y); ctx.quadraticCurveTo(84, -100 + y, 86, -94 + y); ctx.lineTo(84, -90 + y); ctx.lineTo(58, -90 + y); ctx.quadraticCurveTo(48, -92 + y, 48, -98 + y); ctx.closePath(); });
-        strokeLine(ctx, [62, -104 + y, 72, -102 + y], 2, DS, false);
-        shape(ctx, DH, () => ell(ctx, 66, -99 + y, 3.6, 2.6), 1.1);
-        ctx.fillStyle = INK; ctx.fillRect(65.5, -101 + y, 1.2, 4);
-        dot(ctx, 82, -97 + y, 1.1);
-        if (!fire) strokeLine(ctx, [62, -92 + y, 82, -92 + y], 1, '#555', false);
+      const WB = '#858586', WF = '#6b6b6c', WS = '#4a4a4b', WP = '#d0d0d1', WM = '#a9a9aa', WMF = '#979798', WN = '#3a3a3b', WH = '#ececed', WE = '#fbfbfc', WK = '#2d2d2e';
+      const SZ = 1.7, fly = o.fly || 0, fire = o.fire || 0, k = baby ? 1.45 : 1, ws = baby ? 0.55 : 1;
+      const flap = fly > 0.05 ? Math.sin(ph * 1.4) : 0, bob = Math.sin(ph * 2) * 1.6 * m * (1 - fly), sway = Math.sin(ph * 0.7), nod = Math.sin(ph + 0.6) * 2.2 * m * (1 - fly);
+      ctx.save(); ctx.scale(SZ, SZ);
+      if (fly < 0.2) { ell(ctx, 0, 0, 50, 5); ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fill(); }
+      dragonWing(ctx, 6, -88 + bob, fly, flap * 0.9, WMF, WN, ws * 1.3);
+      // hind legs (far, then near)
+      const leg = (off, fill) => theroLeg(ctx, -16, -60 + bob, ph + off, fly < 0.5 ? m : 0.15, { stride: 15, lift: 9, l1: 30, l2: 26, met: 14, w: 13, fill, sickle: !baby });
+      if (fly < 0.5) leg(Math.PI, WF);
+      ctx.save(); ctx.translate(0, bob);
+      const tx = -178, ty = -78 + sway * 18;
+      const tail = () => tailPath(ctx, -30, -76, 13, -96, -92 + sway * 8, tx, ty);
+      const body = () => ell(ctx, 2, -74, 40, 19, 0.14);
+      const neck = () => { ctx.beginPath(); ctx.moveTo(26, -86); ctx.quadraticCurveTo(52, -90, 74, -84 + nod); ctx.lineTo(78, -70 + nod); ctx.quadraticCurveTo(54, -70, 34, -58); ctx.closePath(); };
+      // barbed tail tip
+      shape(ctx, WN, () => { ctx.beginPath(); ctx.moveTo(tx + 10, ty - 3); ctx.lineTo(tx - 4, ty - 16); ctx.lineTo(tx - 2, ty - 4); ctx.lineTo(tx - 16, ty + 2); ctx.lineTo(tx - 2, ty + 4); ctx.lineTo(tx + 10, ty + 3); ctx.closePath(); }, 1.5);
+      if (!baby) spikes(ctx, [[-160, -82 + sway * 16, 6], [-142, -86 + sway * 13, 7], [-122, -90 + sway * 10, 8], [-100, -92 + sway * 7, 8], [-76, -90 + sway * 4, 9], [-54, -88, 10], [-30, -92, 11], [-8, -92, 11], [14, -88, 10], [36, -90, 8], [54, -90 + nod, 7]], WN);
+      blob(ctx, WB, [tail, body, neck]);
+      clipTo(ctx, () => { body(); neck(); tail(); }, () => {
+        // pale underside and dark tiger stripes
+        ctx.fillStyle = WP; ell(ctx, 10, -58, 42, 8, 0.14); ctx.fill(); ell(ctx, 56, -70 + nod * 0.5, 22, 5, 0.1); ctx.fill();
+        ctx.fillStyle = WS;
+        [-120, -96, -72, -48, -24, 0, 22, 46].forEach((x, i) => { ctx.beginPath(); ctx.moveTo(x - 4, -110); ctx.lineTo(x + 6, -110); ctx.lineTo(x + 2 + (i % 2) * 2, -72); ctx.lineTo(x - 3, -76); ctx.closePath(); ctx.fill(); });
       });
-      // near wing on top
-      dragonWing(ctx, 14, -72, fly, flap, DW, DF, ws);
+      ctx.restore();
+      if (fly < 0.5) leg(0, WB);
+      else [[-12, WF], [-18, WB]].forEach(([x, f]) => limb(ctx, x, -58 + bob, 1.2, 20, 1.9, 16, 10, f, 'paw'));
+      // short clawed arms tucked under the chest
+      ctx.save(); ctx.translate(0, bob);
+      const ar = Math.sin(ph * 0.9) * 0.15 * m;
+      limb(ctx, 30, -66, 0.6 + ar, 12, -0.5 + ar, 10, 6, WB, null);
+      { const kx = 30 + Math.sin(0.6 + ar) * 12, ky = -66 + Math.cos(0.6 + ar) * 12, fx = kx + Math.sin(-0.5 + ar) * 10, fy = ky + Math.cos(-0.5 + ar) * 10;
+        if (!baby) talons(ctx, fx - 2, fy - 1, 7, WH, 2); }
+      ctx.restore();
+      // head: long narrow skull, jaws always a little open, rows of teeth, back-swept horns and jaw spikes
+      ctx.save(); ctx.translate(0, bob);
+      grow(ctx, k, 80, -80 + nod, () => {
+        const y = nod, open = 0.22 + fire * 0.4;
+        [[74, -94, 80, -84, 36, -116, -5], [80, -90, 85, -82, 50, -106, -3]].forEach(([x1, y1, x2, y2, hx, hy, b]) => shape(ctx, WH, () => hornPath(ctx, x1, y1 + y, x2, y2 + y, hx, hy + y, b), 1.4));
+        ctx.save(); ctx.translate(78, -76 + y); ctx.rotate(open);
+        shape(ctx, WK, () => { ctx.beginPath(); ctx.moveTo(0, -2); ctx.lineTo(40, -10 - open * 18); ctx.lineTo(40, 1); ctx.closePath(); }, 1);
+        shape(ctx, WB, () => { ctx.beginPath(); ctx.moveTo(-2, -2); ctx.lineTo(40, -1); ctx.quadraticCurveTo(43, 3, 38, 5); ctx.lineTo(0, 7); ctx.closePath(); }, 1.6);
+        teeth(ctx, 6, 38, -1, 8, 3.4, -1, WH);
+        if (!baby) spikes(ctx, [[6, 6, -6], [13, 6.5, -5], [20, 6, -4]], WN);
+        ctx.restore();
+        const skull = () => { ctx.beginPath(); ctx.moveTo(72, -82 + y); ctx.quadraticCurveTo(80, -96 + y, 96, -90 + y); ctx.lineTo(120, -82 + y); ctx.quadraticCurveTo(124, -78 + y, 119, -75 + y); ctx.lineTo(84, -75 + y); ctx.quadraticCurveTo(72, -76 + y, 72, -82 + y); ctx.closePath(); };
+        shape(ctx, WB, skull);
+        clipTo(ctx, skull, () => { ctx.fillStyle = WS; [[84, -96], [96, -94]].forEach(([x, yy]) => { ctx.beginPath(); ctx.moveTo(x, yy + y); ctx.lineTo(x + 5, yy + y); ctx.lineTo(x + 2, yy + 12 + y); ctx.closePath(); ctx.fill(); }); });
+        teeth(ctx, 84, 118, -75 + y, 9, 3.6, 1, WH);
+        strokeLine(ctx, [84, -93 + y, 100, -86 + y], 3, WN);
+        shape(ctx, WE, () => { ctx.beginPath(); ctx.moveTo(88, -88 + y); ctx.quadraticCurveTo(93, -91 + y, 98, -86.5 + y); ctx.quadraticCurveTo(93, -84.5 + y, 88, -88 + y); ctx.closePath(); }, 1.1);
+        ctx.fillStyle = INK; ctx.fillRect(92.4, -89.6 + y, 1.2, 4);
+        dot(ctx, 116, -82 + y, 1.2);
+      });
+      dragonWing(ctx, 16, -84, fly, flap, WM, WN, ws * 1.35);
+      ctx.restore();
       ctx.restore();
     },
   });
@@ -1886,41 +1931,95 @@
       }
     },
 
+    // The wyvern walking toward the camera (front) or away (back): up on its two hind legs, wings folded at its sides
+    // (spread and beating in flight), head held low and forward with the jaws half open.
     dragon(ctx, ph, m, baby, view, o = {}) {
-      const F = view === 'front', DR = '#8c8c8d', DF = '#6a6a6b', DB = '#d3d3d4', DW = '#b6b6b7', DS = '#4e4e4f', DH = '#f0f0f1';
-      const fly = o.fly || 0, fire = o.fire || 0, k = baby ? 1.4 : 1, ws = baby ? 0.55 : 1;
-      const bob = bobOf(ph, m) * (1 - fly), sx = swayOf(ph, m) * (1 - fly), sw = Math.sin(ph * 0.6), flap = fly > 0.05 ? Math.sin(ph * 1.4) : 0;
-      if (fly < 0.2) { ell(ctx, 0, 0, 24, 4.5); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fill(); }
-      const L = { ph, m, spread: 15, farSpread: 12, nLen: 40, fLen: 38, depth: 7, w: 10, near: DR, far: DF, foot: 'paw', lf: baby ? 0.75 : 1 };
-      // wings: folded and raised beside the body on the ground, spread wide and beating in the air
+      const WB = '#858586', WF = '#6b6b6c', WS = '#4a4a4b', WP = '#d0d0d1', WM = '#a9a9aa', WN = '#3a3a3b', WH = '#ececed', WE = '#fbfbfc', WK = '#2d2d2e';
+      const F = view === 'front', SZ = 1.7, fly = o.fly || 0, fire = o.fire || 0, k = baby ? 1.4 : 1, ws = baby ? 0.55 : 1;
+      const bob = bobOf(ph, m) * (1 - fly), sx = swayOf(ph, m) * (1 - fly), sw = Math.sin(ph * 0.7), flap = fly > 0.05 ? Math.sin(ph * 1.4) : 0;
+      ctx.save(); ctx.scale(SZ, SZ);
+      if (fly < 0.2) { ell(ctx, 0, 0, 26, 4.5); ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fill(); }
+      // two hind legs, stepping in turn
+      const L = { ph, m, spread: 13, farSpread: 13, nLen: 34, fLen: 34, depth: 0, w: 12, near: WB, far: WF, foot: 'paw', lf: baby ? 0.75 : 1 };
+      // big drumstick thighs over the tops of the legs, and clawed toes
+      const legs = () => {
+        if (fly >= 0.5) { [-1, 1].forEach(s => limb(ctx, s * 9, -36, 0.25 * s, 12, 0.6 * s, 11, 9, WB, 'paw')); return; }
+        legsFB(ctx, L, 'near');
+        const len = 34 * L.lf;
+        [[-13, 0], [13, Math.PI]].forEach(([x, off]) => {
+          const lift = len * 0.2 * m * Math.max(0, Math.sin(ph + off));
+          bodyLayer(ctx, 0, -lift, () => { shape(ctx, WB, () => ell(ctx, x, -len + 4, 9.5, 11)); if (!baby) talons(ctx, x - 7, 0, 7, WH, 3); });
+        });
+      };
+      const d = baby ? 34 * 0.25 : 0;
+      // folded wings rise past the shoulders with a torn top edge; in the air they spread out and beat
       const wings = () => [-1, 1].forEach(s => {
-        const span = (24 + fly * 46) * ws, up = (fly ? -10 - flap * 22 : -26) * ws;
-        shape(ctx, DW, () => { ctx.beginPath(); ctx.moveTo(s * 10, -70); ctx.lineTo(s * (10 + span * 0.55), -78 + up); ctx.lineTo(s * (10 + span), -66 + up * 0.6);
-          ctx.quadraticCurveTo(s * (6 + span * 0.8), -56 + up * 0.2, s * (8 + span * 0.62), -50); ctx.quadraticCurveTo(s * (6 + span * 0.4), -58, s * (4 + span * 0.3), -48); ctx.quadraticCurveTo(s * 8, -56, s * 8, -56); ctx.closePath(); }, 1.8);
-        strokeLine(ctx, [s * 10, -70, s * (10 + span * 0.55), -78 + up, s * (10 + span), -66 + up * 0.6], 2.6, DF);
+        const span = (20 + fly * 52) * ws, up = (fly ? -8 - flap * 24 : -30) * ws;
+        const P = [[s * 12, -74], [s * (12 + span * 0.55), -84 + up], [s * (12 + span), -70 + up * 0.6]];
+        shape(ctx, WM, () => { ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); ctx.lineTo(P[1][0], P[1][1]); ctx.lineTo(P[2][0], P[2][1]);
+          raggedTo(ctx, P[2][0], P[2][1], s * (8 + span * 0.55), -46, 4, 3.5 * s, s > 0 ? 2 : 5); ctx.lineTo(s * 10, -54); ctx.closePath(); }, 1.8);
+        strokeLine(ctx, [P[0][0], P[0][1], P[1][0], P[1][1], P[2][0], P[2][1]], 3, WN);
+        [0.35, 0.7].forEach(t => strokeLine(ctx, [P[1][0], P[1][1], s * (10 + span * t), -50 + (1 - t) * 4], 1.2, WN, false));
+        shape(ctx, WN, () => { const [x, y] = P[1]; ctx.beginPath(); ctx.moveTo(x - 2, y + 1); ctx.lineTo(x + s * 2, y - 8); ctx.lineTo(x + 2, y + 1); ctx.closePath(); }, 1);
       });
-      const d = fly < 0.5 ? legsFB(ctx, L, 'far') : 0;
-      const head = () => grow(ctx, k, 0, -98, () => {
-        [-1, 1].forEach(s => shape(ctx, DH, () => hornPath(ctx, s * 5, -108, s * 9, -106, s * 16, -124, -s * 2), 1.4));
-        shape(ctx, DR, () => ell(ctx, 0, -100, 12, 11));
-        if (F) {
-          shape(ctx, DR, () => { ctx.beginPath(); ctx.moveTo(-8, -98); ctx.lineTo(8, -98); ctx.lineTo(6, -84 + fire * 4); ctx.lineTo(-6, -84 + fire * 4); ctx.closePath(); }, 1.8);
-          if (fire > 0.1) shape(ctx, '#333334', () => ell(ctx, 0, -86 + fire * 2, 4, 2 + fire * 2), 1.2);
-          [-1, 1].forEach(s => { shape(ctx, DH, () => ell(ctx, s * 6, -103, 3, 2.4), 1); ctx.fillStyle = INK; ctx.fillRect(s * 6 - 0.6, -105, 1.2, 4); dot(ctx, s * 2.5, -90, 1); });
-        }
+      const body = () => ell(ctx, 0, -60, 21, 26);
+      // the head, low and in front of the chest
+      const head = () => grow(ctx, k, 0, -76, () => {
+        const open = 0.35 + fire * 0.65;
+        [-1, 1].forEach(s => shape(ctx, WH, () => hornPath(ctx, s * 3, -93, s * 12, -86, s * 31, -108, -s * 4), 1.5));
+        // lower jaw, the dark of the open mouth, then teeth
+        shape(ctx, WB, () => { ctx.beginPath(); ctx.moveTo(-11, -74); ctx.lineTo(11, -74); ctx.lineTo(8, -62 + open * 6); ctx.lineTo(-8, -62 + open * 6); ctx.closePath(); }, 1.6);
+        shape(ctx, WK, () => ell(ctx, 0, -70 + open * 2, 8, 2 + open * 3.5), 1);
+        if (!baby) [-1, 1].forEach(s => spikes(ctx, [[s * 6, -62 + open * 6, -4], [s * 2, -61 + open * 6, -5]], WN));
+        const skull = () => { ctx.beginPath(); ctx.moveTo(-13, -84); ctx.quadraticCurveTo(-12, -96, 0, -97); ctx.quadraticCurveTo(12, -96, 13, -84); ctx.lineTo(10, -73); ctx.lineTo(-10, -73); ctx.closePath(); };
+        shape(ctx, WB, skull);
+        clipTo(ctx, skull, () => { ctx.fillStyle = WS; [-1, 1].forEach(s => { ctx.beginPath(); ctx.moveTo(s * 3, -97); ctx.lineTo(s * 7, -97); ctx.lineTo(s * 5, -88); ctx.closePath(); ctx.fill(); }); });
+        teeth(ctx, -9, 9, -73, 6, 3, 1, WH);
+        teeth(ctx, -7, 7, -66 + open * 5, 5, 2.6, -1, WH);
+        // angry brows over glowing slit eyes, and nostrils
+        [-1, 1].forEach(s => {
+          strokeLine(ctx, [s * 2, -89, s * 11, -86], 2.6, WN);
+          shape(ctx, WE, () => { ctx.beginPath(); ctx.moveTo(s * 4, -86); ctx.quadraticCurveTo(s * 7.5, -88, s * 10.5, -85); ctx.quadraticCurveTo(s * 7.5, -83, s * 4, -86); ctx.closePath(); }, 1);
+          ctx.fillStyle = INK; ctx.fillRect(s * 7.4 - 0.6, -87.8, 1.2, 3.6);
+          dot(ctx, s * 2.6, -77.5, 1);
+        });
       });
-      const neck = () => shape(ctx, DR, () => { ctx.beginPath(); ctx.moveTo(-9, -74); ctx.lineTo(9, -74); ctx.lineTo(7, -96); ctx.lineTo(-7, -96); ctx.closePath(); });
-      const lift = fly * 0;
       if (F) {
-        bodyLayer(ctx, sx, d + bob, () => { wings(); shape(ctx, DR, () => ell(ctx, 0, -60, 22, 20)); clipTo(ctx, () => ell(ctx, 0, -60, 22, 20), () => { ctx.fillStyle = DB; ell(ctx, 0, -50, 12, 14); ctx.fill(); }); });
-        if (fly < 0.5) legsFB(ctx, L, 'near'); else [-1, 1].forEach(s => limb(ctx, s * 12, -46, 0.4 * s, 12, 0.9 * s, 10, 8, DR, 'paw'));
-        bodyLayer(ctx, sx, d + bob, () => { neck(); head(); });
+        bodyLayer(ctx, sx, d + bob, () => {
+          wings();
+          shape(ctx, WB, body);
+          clipTo(ctx, body, () => {
+            ctx.fillStyle = WP; ell(ctx, 0, -52, 12, 20); ctx.fill();
+            ctx.strokeStyle = '#b3b3b4'; ctx.lineWidth = 1; for (let y = -66; y <= -38; y += 6) { ctx.beginPath(); ctx.moveTo(-10, y); ctx.lineTo(10, y); ctx.stroke(); }
+            ctx.fillStyle = WS; [-1, 1].forEach(s => [-72, -60, -48].forEach(y => { ctx.beginPath(); ctx.moveTo(s * 21, y); ctx.lineTo(s * 14, y + 3); ctx.lineTo(s * 21, y + 6); ctx.closePath(); ctx.fill(); }));
+          });
+        });
+        legs();
+        bodyLayer(ctx, sx, d + bob, () => {
+          // little clawed arms under the chest
+          [-1, 1].forEach(s => { limb(ctx, s * 15, -56, 0.5 * s, 6, 0.1 * s, 5.5, 4.5, WB, null); if (!baby) talons(ctx, s * 18 - 3, -45, 5, WH, 2); });
+          head();
+        });
       } else {
-        bodyLayer(ctx, sx, d + bob, () => { neck(); head(); shape(ctx, DR, () => ell(ctx, 0, -60, 22, 20)); if (!baby) spikes(ctx, [[0, -78, 8], [0, -66, 7]], DS); wings(); });
-        if (fly < 0.5) legsFB(ctx, L, 'near');
-        bodyLayer(ctx, sx, d + bob, () => { blob(ctx, DR, [() => { ctx.beginPath(); ctx.moveTo(-12, -56); ctx.quadraticCurveTo(sw * 10, -30, sw * 18, -6); ctx.quadraticCurveTo(sw * 6, -30, 12, -56); ctx.closePath(); }]);
-          shape(ctx, DS, () => { const x = sw * 18; ctx.beginPath(); ctx.moveTo(x, -10); ctx.lineTo(x - 7, -2); ctx.lineTo(x, 6); ctx.lineTo(x + 7, -2); ctx.closePath(); }, 1.4); });
+        bodyLayer(ctx, sx, d + bob, () => {
+          // walking away: the head is out in front, so only the horns show past the shoulders
+          [-1, 1].forEach(s => shape(ctx, WH, () => hornPath(ctx, s * 3, -86, s * 12, -80, s * 29, -104, -s * 4), 1.5));
+          wings();
+          shape(ctx, WB, body);
+          clipTo(ctx, body, () => { ctx.fillStyle = WS; [-76, -64, -52, -40].forEach(y => { ctx.beginPath(); ctx.moveTo(-21, y); ctx.lineTo(0, y + 5); ctx.lineTo(21, y); ctx.lineTo(21, y + 4); ctx.lineTo(0, y + 9); ctx.lineTo(-21, y + 4); ctx.closePath(); ctx.fill(); }); });
+          if (!baby) spikes(ctx, [[0, -84, 9], [0, -72, 8], [0, -60, 7]], WN);
+        });
+        legs();
+        // the tail comes toward the camera, swinging, with its barbed tip near the ground
+        bodyLayer(ctx, sx, d + bob, () => {
+          const x = sw * 22;
+          blob(ctx, WB, [() => { ctx.beginPath(); ctx.moveTo(-12, -54); ctx.quadraticCurveTo(sw * 12, -30, x, -8); ctx.quadraticCurveTo(sw * 6, -30, 12, -54); ctx.closePath(); }]);
+          clipTo(ctx, () => { ctx.beginPath(); ctx.moveTo(-12, -54); ctx.quadraticCurveTo(sw * 12, -30, x, -8); ctx.quadraticCurveTo(sw * 6, -30, 12, -54); ctx.closePath(); }, () => {
+            ctx.fillStyle = WS; [-44, -32, -20].forEach((y, i) => { const cx = sw * (6 + i * 5); ctx.fillRect(cx - 14, y, 28, 4); }); });
+          shape(ctx, WN, () => { ctx.beginPath(); ctx.moveTo(x, -14); ctx.lineTo(x - 9, -2); ctx.lineTo(x - 3, -4); ctx.lineTo(x, 6); ctx.lineTo(x + 3, -4); ctx.lineTo(x + 9, -2); ctx.closePath(); }, 1.4);
+        });
       }
+      ctx.restore();
     },
   });
 
@@ -1954,8 +2053,9 @@
     trex: { '#a3a3a4': '#7f8c4f', '#7c7c7d': '#606b39', '#dadadb': '#dbd09b', '#6e6e6f': '#4f5a2b' },
     raptor: { '#b0b0b1': '#b88c53', '#858586': '#8b6539', '#8f8f90': '#6f4b2b', '#e3e3e4': '#eddcb8', '#69696a': '#5a3a1b' },
     titanosaur: { '#bdbdbe': '#9ca18a', '#959596': '#7a806a', '#8a8a8b': '#6f6551', '#e2e2e3': '#dad7c4' },
-    dragon: { '#8c8c8d': '#b3271f', '#6a6a6b': '#7d1813', '#d3d3d4': '#e9c35b', '#b6b6b7': '#d9614b', '#9d9d9e': '#b14b39', '#4e4e4f': '#3b1311',
-      '#f0f0f1': '#f3e7c5', '#a5a5a6': '#c9a041', '#6f6f70': '#8a1b15', '#333334': '#3a0e0b' },
+    // muddy olive-brown with near-black tiger stripes, a sandy belly, bone horns and teeth, sickly yellow-green eyes
+    dragon: { '#858586': '#7a5f3a', '#6b6b6c': '#5a4529', '#4a4a4b': '#2f2414', '#d0d0d1': '#cdb88a', '#a9a9aa': '#8e6b45', '#979798': '#735535',
+      '#3a3a3b': '#2a1d10', '#ececed': '#ece3c8', '#fbfbfc': '#d4e83a', '#2d2d2e': '#4a1010', '#b3b3b4': '#b39d70' },
   };
   let colorK = 0, PAL = null;
   const hooked = new WeakSet();
@@ -1991,7 +2091,7 @@
     flamingo: [25, -112], snowleopard: [56, -56], ostrich: [22, -150], seahawk: [14, -48], hippo: [62, -48], rhino: [70, -60],
     anaconda: [88, -8], polarbear: [62, -55], shark: [50, -24], orca: [58, -28], parrot: [12, -46], toucan: [30, -45], owl: [12, -44],
     eagle: [15, -58], triceratops: [80, -46], basilisk: [104, -62], unicorn: [54, -118], dolphin: [66, -25], trex: [104, -112],
-    raptor: [56, -72], titanosaur: [214, -274], dragon: [84, -92],
+    raptor: [56, -72], titanosaur: [214, -274], dragon: [202, -134],
   };
   global.ZooAnimals = { SPECIES, APPROVED, draw, setColor, COLORS, MOUTH, ids: Object.keys(SPECIES) };
 })(typeof window !== 'undefined' ? window : globalThis);
