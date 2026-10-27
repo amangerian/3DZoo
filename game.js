@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.11';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.12';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
@@ -242,7 +242,7 @@
     const tiles = new Array(MW * MH).fill(GRASS);
     for (let y = MH - 1; y >= MH - 6; y--) tiles[idx(ENT.x, y)] = PATH;
     return {
-      v: 1, starRules: STAR_RULES, money: 15000, stars: 1, secrets: {}, peakGuests: 0, bornBy: {}, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
+      v: 1, starRules: STAR_RULES, money: 15000, stars: 1, won: false, secrets: {}, peakGuests: 0, bornBy: {}, day: 1, time: 0, speed: 1, ticket: 15, rep: 50,
       tiles, items: new Array(MW * MH).fill(null), animals: [], staff: [],
       litter: {}, poop: {}, food: {}, nextId: 1, log: [], arrivalAcc: 0,
       today: newToday(), totals: { guests: 0, births: 0 }, history: [], comments: {}, plushSales: {},
@@ -1821,7 +1821,7 @@
   // ---------- saving ----------
   function serialize() {
     return {
-      v: 1, starRules: STAR_RULES, money: S.money, stars: S.stars, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
+      v: 1, starRules: STAR_RULES, money: S.money, stars: S.stars, won: S.won || undefined, wonDay: S.wonDay || undefined, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
       tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
       animals: S.animals.map(a => ({ id: a.id, sp: a.sp, sex: a.sex, bc: a.bc || undefined, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
         hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2), loose: a.loose || undefined, moveTo: a.moveTo ?? undefined })),
@@ -1837,6 +1837,7 @@
       litter: o.litter || {}, poop: o.poop || {}, food: o.food || {}, nextId: o.nextId || 1, log: o.log || [], totals: o.totals || s.totals,
       today: Object.assign(newToday(), o.today || {}), history: o.history || [], comments: o.comments || {}, plushSales: o.plushSales || {} });
     s.stars = o.stars || 0;   // older saves work out their level on load
+    s.won = !!o.won; s.wonDay = o.wonDay || 0;
     s.secrets = o.secrets || {}; s.peakGuests = o.peakGuests || 0; s.bornBy = o.bornBy || {};
     if (o.starRules !== STAR_RULES) { s.stars = 0; s.restarred = true; }    // star goals changed: work the level out again
     s.tiles = o.tiles.split('').map(Number);
@@ -2301,7 +2302,8 @@
   window.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     keys.add(e.key.toLowerCase());
-    if (e.key === 'Escape') { moving = null; setTool('look'); }
+    if (e.key === 'Escape' && $('victory').classList.contains('show')) { hideVictory(); return; }
+    if (e.key === 'Escape') { if (tool === 'look' && !moving) openGroup(null); moving = null; setTool('look'); }
     if (e.key === ' ') { e.preventDefault(); setSpeed(S.speed ? 0 : 1); }
   });
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
@@ -2331,6 +2333,7 @@
     document.querySelectorAll('#tools button[data-tool]').forEach(b =>
       b.classList.toggle('on', b.dataset.tool === t && (!b.dataset.sp || b.dataset.sp === toolSpecies)));
     if (t !== 'look') selected = null;
+    updateGroups();
   }
 
   // ---------- zoo stars ----------
@@ -2360,7 +2363,60 @@
       log(msg); toast(msg);
       if (L.hidden) { buildTray(); wireTray(); }
       renderHud(); renderTray(); if (panelMode === 'stars') renderPanel();
+      if (S.stars === MAX_STARS && !S.won) { S.won = true; S.wonDay = S.day; log(`You won! The zoo earned all ${MAX_STARS} stars on day ${S.day}.`); setTimeout(() => showVictory(), 900); save(true); }
     }
+  }
+
+  // ---------- winning ----------
+  // Earning the last star "beats" the game: a big gold congratulations with confetti. Play carries on afterward.
+  let victoryRaf = 0, speedBeforeWin = 1;
+  function showVictory() {
+    const box = $('victory'); if (!box || box.classList.contains('show')) return;
+    speedBeforeWin = S.speed || 1; setSpeed(0);       // pause while celebrating
+    const species = new Set(S.animals.map(a => a.sp)).size;
+    $('victory-stats').innerHTML = `Your zoo earned all ${MAX_STARS} stars${S.wonDay ? ` on day ${S.wonDay}` : ''}.<br>
+      ${S.animals.length} animals of ${species} species, ${S.staff.length} staff, ${(S.totals.guests || 0).toLocaleString()} guests welcomed, and ${S.totals.births || 0} babies born.`;
+    box.querySelector('.stars').textContent = '★'.repeat(MAX_STARS);
+    box.classList.add('show');
+    startConfetti();
+    $('victory-go').focus();
+  }
+  function hideVictory() {
+    const box = $('victory'); if (!box) return;
+    box.classList.remove('show'); cancelAnimationFrame(victoryRaf); victoryRaf = 0;
+    setSpeed(speedBeforeWin);
+  }
+  function startConfetti() {
+    const cv = $('confetti'), c = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    const size = () => { cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; };
+    size();
+    const colors = ['#f5c518', '#ffdf5e', '#d4a017', '#e63946', '#2a9d8f', '#457b9d', '#f4a261', '#9b5de5', '#ffffff'];
+    const W0 = () => cv.width / dpr, H0 = () => cv.height / dpr;
+    const bits = [];
+    // bursts from the bottom corners, then a steady fall from the top
+    const burst = (x, dir) => { for (let k = 0; k < 90; k++) bits.push({ x, y: H0(), vx: dir * (2 + Math.random() * 7), vy: -(9 + Math.random() * 9), r: 4 + Math.random() * 5,
+      a: Math.random() * 6, va: (Math.random() - 0.5) * 0.4, col: colors[k % colors.length], shape: k % 3 }); };
+    burst(0, 1); burst(W0(), -1);
+    let t = 0;
+    const step = () => {
+      t++;
+      if (t < 420 && t % 3 === 0) for (let k = 0; k < 3; k++) bits.push({ x: Math.random() * W0(), y: -10, vx: (Math.random() - 0.5) * 2, vy: 1.5 + Math.random() * 2,
+        r: 4 + Math.random() * 5, a: Math.random() * 6, va: (Math.random() - 0.5) * 0.3, col: colors[(Math.random() * colors.length) | 0], shape: k % 3 });
+      if (cv.width !== cv.clientWidth * dpr) size();
+      c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W0(), H0());
+      for (let k = bits.length - 1; k >= 0; k--) {
+        const b = bits[k];
+        b.vy = Math.min(b.vy + 0.22, 4.5); b.vx *= 0.985; b.x += b.vx + Math.sin((t + k) * 0.05) * 0.6; b.y += b.vy; b.a += b.va;
+        if (b.y > H0() + 20) { bits.splice(k, 1); continue; }
+        c.save(); c.translate(b.x, b.y); c.rotate(b.a); c.fillStyle = b.col;
+        if (b.shape === 0) c.fillRect(-b.r, -b.r * 0.4, b.r * 2, b.r * 0.8);          // ribbon
+        else if (b.shape === 1) { c.beginPath(); c.arc(0, 0, b.r * 0.6, 0, 7); c.fill(); }  // dot
+        else { c.scale(1, Math.abs(Math.cos(b.a * 2))); c.fillRect(-b.r * 0.7, -b.r * 0.7, b.r * 1.4, b.r * 1.4); }   // flipping square
+        c.restore();
+      }
+      if (bits.length || t < 420) victoryRaf = requestAnimationFrame(step); else victoryRaf = 0;
+    };
+    cancelAnimationFrame(victoryRaf); victoryRaf = requestAnimationFrame(step);
   }
 
   // ---------- bottom bar tabs: Build / Animals / Staff / Exhibits ----------
@@ -2443,6 +2499,7 @@
 
   function renderTray() {
     if (tab === 'exhibits') renderExhibitPane();
+    if (tab === 'build') updateGroups();
     document.querySelectorAll('#tray button[data-tool]').forEach(b => {
       const id = b.dataset.sp || b.dataset.tool, locked = b.dataset.sp ? !speciesOpen(id) : !toolOpen(id);
       if (b.classList.contains('locked') === locked && b.dataset.ready) return;
@@ -2454,6 +2511,30 @@
     document.querySelectorAll('[data-count]').forEach(el => {
       const n = S.staff.filter(s => s.type === el.dataset.count).length;
       el.textContent = `${n} on staff`;
+    });
+  }
+  // ---------- build folders ----------
+  // The Build tab shows a short top row (Path, Fences, Trees, Water & snow, Toys, Buildings, Remove). A folder opens
+  // into its own row of choices with a Back button, and stays open while you build with them.
+  const buildPane = () => document.querySelector('#tray .pane[data-pane="build"]');
+  function openGroup(g) {
+    const pane = buildPane(); if (!pane) return;
+    if (g) pane.dataset.folder = g; else delete pane.dataset.folder;
+    const tray = $('tray'); if (tray) tray.scrollLeft = 0;
+    updateGroups();
+  }
+  function updateGroups() {
+    document.querySelectorAll('#tray .bgrp').forEach(grp => {
+      const g = grp.dataset.group, btn = document.querySelector(`#tray [data-open="${g}"]`); if (!btn) return;
+      const tools = [...grp.querySelectorAll('button[data-tool]')], ids = tools.map(b => b.dataset.tool);
+      const armed = tools.find(b => b.dataset.tool === tool);
+      const open = ids.filter(toolOpen), note = btn.querySelector('[data-grpnote]');
+      btn.classList.toggle('on', !!armed);
+      btn.classList.toggle('locked', !open.length);
+      if (note) note.classList.toggle('lock', !open.length);
+      if (note) note.textContent = armed ? `using: ${armed.firstChild.textContent.trim()}`
+        : !open.length ? `locked: ${Math.min(...ids.map(t => starOf('tools', t)))}★`
+        : `${open.length} kind${open.length > 1 ? 's' : ''}`;
     });
   }
   function showBuySex() { document.querySelectorAll('#tray [data-sex]').forEach(b => b.classList.toggle('on', b.dataset.sex === buySex)); }
@@ -2529,7 +2610,8 @@
           ${items.length ? `<small>Unlocks: ${items.join(', ')}</small><br>` : ''}${L.mystery || (L.hidden && !got) ? '<small>Unlocks: ???</small><br>' : ''}${L.color ? `<small>Color: ${L.color.toLowerCase()}</small>` : ''}</div>`;
       }).join('');
       el.innerHTML = (next ? `<div class="card"><b>Next star</b><br><small>Meet all of these at the same time.</small>${goals}</div>`
-        : `<div class="card"><b>A ${MAX_STARS}-star zoo!</b><br><small>You've earned every star. Keep your eyes open...</small></div>`) + ladder;
+        : `<div class="card"><b>A ${MAX_STARS}-star zoo! You won!</b><br><small>You've earned every star. Keep playing as long as you like, and keep your eyes open...</small><br><button id="b-win">See the celebration again</button></div>`) + ladder;
+      if ($('b-win')) $('b-win').onclick = () => showVictory();
       return;
     }
     if (panelMode === 'staff') {
@@ -2807,6 +2889,8 @@
   });
   document.querySelectorAll('#tray [data-hire]').forEach(b => b.onclick = () => { hire(b.dataset.hire); renderTray(); });
   document.querySelectorAll('#tray [data-sex]').forEach(b => b.onclick = () => { buySex = b.dataset.sex; showBuySex(); });
+  document.querySelectorAll('#tray [data-open]').forEach(b => b.onclick = () => openGroup(b.dataset.open));
+  document.querySelectorAll('#tray [data-back]').forEach(b => b.onclick = () => openGroup(null));
   showBuySex();
   $('b-staff').onclick = () => openPanel(panelMode === 'staff' ? null : 'staff');
   }
@@ -2817,6 +2901,7 @@
   $('b-menu').onclick = () => openPanel(panelMode === 'menu' ? null : 'menu');
   $('b-help').onclick = () => openPanel(panelMode === 'help' ? null : 'help');
   $('panel-close').onclick = () => { openPanel(null); selected = null; };
+  $('victory-go').onclick = hideVictory;
   document.querySelectorAll('#speed button').forEach(b => b.onclick = () => setSpeed(+b.dataset.speed));
   $('zoom-in').onclick = () => zoomAt(W / 2, H / 2, 1.25);
   $('zoom-out').onclick = () => zoomAt(W / 2, H / 2, 0.8);
@@ -2875,7 +2960,8 @@
   setTab('build');
   setTool('look');
   requestAnimationFrame(frame);
+  if (S.stars >= MAX_STARS && !S.won) { S.won = true; setTimeout(() => showVictory(), 1200); }
 
   // small hook for automated testing
-  window.__zoo = { startBehavior, get fx() { return fx; }, exhibitReport, scorecard, attraction, guestsPerDay, janitorZones, get zoneOf() { return zoneOf; }, get zoneTiles() { return zoneTiles; }, get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, setTab, checkStars, STARS, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal, startMove, moveTo };
+  window.__zoo = { showVictory, hideVictory, startBehavior, get fx() { return fx; }, exhibitReport, scorecard, attraction, guestsPerDay, janitorZones, get zoneOf() { return zoneOf; }, get zoneTiles() { return zoneTiles; }, get toyPlay() { return toyPlay; }, renameAnimal, openPanel, select: o => { selected = o; openPanel('info'); }, get S() { return S; }, get EX() { return EX; }, get guests() { return guests; }, tick, setTab, checkStars, STARS, applyTool: (t, x, y, sp) => { setTool(t, sp); applyTool(idx(x, y), true); }, hire, recompute, save, loadSaved, serialize, deserialize, startWith, newState, setSpeed, view, sellAnimal, startMove, moveTo };
 })();

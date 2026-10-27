@@ -16,6 +16,7 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
   - 8 stars: ??? (the hardest of all: a near-perfect rating and a huge crowd)
   What stars 7 and 8 unlock stays hidden, in the game and in the Animals tab, until you earn them.
   Earned stars are never lost. Older saves work out their star level when loaded and keep everything already built.
+- **Winning**: earning the last star beats the game, with a big gold congratulations and confetti. You can keep playing afterward, and see the celebration again from the stars panel.
 - **Secrets**: a few rare animals are hidden until you find out how to unlock them.
 - **Floors**: paint **snow** inside an exhibit for cold animals (penguins, snow leopards, polar bears want at least half the land snowy). Paint a **swim pool** inside an exhibit for animals that love the water (penguins, flamingos, bears, polar bears, elephants, hippos, rhinos, anacondas): they swim in it, and a pool of 3+ tiles counts as their water. Paint **tank water** (at least 12 tiles, inside a fence) for sharks, orcas, and dolphins. Fences beside tank water become glass walls.
 - **Sharks, orcas, and dolphins** need lots of room in the tank, expensive food, and a keeper trained to skill 3. Orcas need another orca for company, and dolphins live in pods.
@@ -25,7 +26,7 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
 - **Signature behaviors**: every species has its own move it does now and then. Lions roar, elephants spray water from their trunks, monkeys do backflips, penguins belly-slide, polar bears roll in the snow, parrots talk, dolphins leap and spin, and more.
 - **Escapes**: if a fence comes down, animals get out and wander nearby. Keepers catch them and lead them to an exhibit they can live in.
 - **Staff & training**: see everyone you've hired, what they're doing, and train them up to skill 5. Trained staff work faster (and keepers learn special skills), but each level costs more in training and wages.
-- **Bottom bar**: four tabs. Build (paths, fences, floors, exhibit items, toys, buildings, remove), Animals, Staff, and Exhibits (every exhibit's happiness, space, company, food, and cleanliness at a glance, with what each one needs).
+- **Bottom bar**: four tabs. Build (Path and Remove, plus folders that open into more choices: Fences, Trees, Water & snow, Toys, and Buildings; tap ‹ Back to return, and a folder shows which of its tools you're using), Animals, Staff, and Exhibits (every exhibit's happiness, space, company, food, and cleanliness at a glance, with what each one needs).
 - **Guests** stop at the fence to watch the animals, and linger at their favorites, babies, and happy animals.
 - **Paths** connect everything to the entrance. Guests only walk on paths.
 - **Fences** make exhibits. An exhibit is grass that's fully closed in by fence, with a path running right beside it so keepers can get in.
@@ -82,6 +83,9 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.12** (Oct 26, 2026)
+  - The Build tab is shorter, which helps most on phones: Path and Remove stay on the top row, and the rest are in folders (Fences, Trees, Water & snow, Toys, Buildings) that open into their options.
+  - Earning the final star shows a "Congratulations! You won!" screen with gold letters and confetti. The game pauses for it and carries on afterward. Zoos that already had every star see it once when loaded.
 - **v1.11** (Oct 26, 2026)
   - Keeper assignments: keepers on Auto (the default) split the exhibits evenly between them instead of crowding into the same exhibit or wandering. Any keeper can be assigned to one exhibit from their panel, Staff & training, or the exhibit's panel. Idle keepers wait by their own exhibits, and an exhibit nobody looks after shows up as something to fix.
   - Animals are female or male. Choose which one you're buying in the Animals tab. Babies need an adult female and a male in the same exhibit.
