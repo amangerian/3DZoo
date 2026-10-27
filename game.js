@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.14';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.15';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
@@ -149,7 +149,7 @@
     ostrich: { speed: 20, space: 5 }, seahawk: { speed: 18, space: 3 }, hippo: { speed: 9, space: 9 }, anaconda: { speed: 7, space: 4 },
     rhino: { speed: 11, space: 9 }, polarbear: { speed: 11, space: 8 }, shark: { speed: 16, space: 25 }, orca: { speed: 18, space: 45 },
     triceratops: { speed: 9, space: 12 }, basilisk: { speed: 8, space: 10 }, unicorn: { speed: 16, space: 7 },
-    dolphin: { speed: 24, space: 30 }, trex: { speed: 13, space: 30 }, raptor: { speed: 24, space: 6 }, titanosaur: { speed: 7, space: 60 }, dragon: { speed: 14, space: 40 },
+    dolphin: { speed: 24, space: 30 }, trex: { speed: 13, space: 30 }, raptor: { speed: 24, space: 6 }, titanosaur: { speed: 7, space: 60 }, dragon: { speed: 16, space: 55 },
     parrot: { speed: 18, space: 2 }, toucan: { speed: 18, space: 2 }, owl: { speed: 16, space: 3 }, eagle: { speed: 18, space: 5 },
   };
   const WORLD_SCALE = 0.34;
@@ -545,7 +545,7 @@
   // Every species has one thing it does now and then that no other animal does. Each entry: label (shown in the
   // animal's panel), dur (seconds), every (about how often, in seconds), move (speed boost if it runs while moving),
   // and step(a, u, dt, h) called each tick with u going 0 -> 1. h has the mouth position and helpers.
-  const FLY_HEIGHT = 44;        // how high the dragon flies (world px)
+  const FLY_HEIGHT = 58;        // how high the dragon flies (world px)
   const bell = (u, k = 5) => Math.max(0, Math.min(1, u * k, (1 - u) * k));
   const once = (a, key, test) => { if (test && !a.beh[key]) { a.beh[key] = true; return true; } return false; };
   const BEH = {
@@ -614,8 +614,8 @@
     dragon: { label: 'Breathing fire', dur: 2.2, every: 45, step(a, u, dt, h) {
       a.fire = bell(u, 6);
       if (u > 0.12 && u < 0.88) for (let k = 0; k < 3; k++) if (Math.random() < dt * 30)
-        puff('fire', h.mx + h.f * 2, h.my + 1, { vx: h.f * (90 + Math.random() * 60), vy: (Math.random() - 0.5) * 30, g: -20, life: 0.55 + Math.random() * 0.2, r: 2.5 + Math.random() * 2 });
-      if (Math.random() < dt * 6) puff('smoke', h.mx + h.f * 30, h.my - 6, { vy: -14, vx: h.f * 10, life: 1.2, r: 3 }); } },
+        puff('fire', h.mx + h.f * 2, h.my + 1, { vx: h.f * (140 + Math.random() * 90), vy: (Math.random() - 0.5) * 45, g: -20, life: 0.6 + Math.random() * 0.25, r: 3.5 + Math.random() * 3 });
+      if (Math.random() < dt * 8) puff('smoke', h.mx + h.f * 45, h.my - 8, { vy: -16, vx: h.f * 12, life: 1.4, r: 4.5 }); } },
   };
   // Where an animal's mouth is right now, in world pixels (follows facing, size, lean and lift).
   function behHelpers(a) {
@@ -2184,10 +2184,10 @@
   // Rough size of each animal's side-view art (art units): used to pivot poses and size ripples.
   const BODY_W = { lion: 110, elephant: 140, giraffe: 110, zebra: 110, penguin: 40, bear: 110, monkey: 60, flamingo: 60, snowleopard: 120,
     ostrich: 80, seahawk: 50, hippo: 130, anaconda: 190, rhino: 140, polarbear: 120, shark: 110, orca: 120, triceratops: 160, basilisk: 190,
-    unicorn: 100, parrot: 40, toucan: 40, owl: 40, eagle: 50, dolphin: 120, trex: 260, raptor: 130, titanosaur: 400, dragon: 220 };
+    unicorn: 100, parrot: 40, toucan: 40, owl: 40, eagle: 50, dolphin: 120, trex: 260, raptor: 130, titanosaur: 400, dragon: 500 };
   const BODY_H = { lion: 90, elephant: 120, giraffe: 200, zebra: 100, penguin: 60, bear: 80, monkey: 70, flamingo: 120, snowleopard: 70,
     ostrich: 150, seahawk: 50, hippo: 80, anaconda: 30, rhino: 90, polarbear: 90, shark: 60, orca: 70, triceratops: 100, basilisk: 80,
-    unicorn: 110, parrot: 55, toucan: 55, owl: 60, eagle: 60, dolphin: 60, trex: 160, raptor: 90, titanosaur: 280, dragon: 150 };
+    unicorn: 110, parrot: 55, toucan: 55, owl: 60, eagle: 60, dolphin: 60, trex: 160, raptor: 90, titanosaur: 280, dragon: 220 };
 
   // Animals turn to the side while playing or doing their signature behavior.
   function animalView(a) {
@@ -2224,7 +2224,10 @@
       const d = Math.hypot(e.x - wx, e.y - oy - wy);
       if (d < r && d < bd) { bd = d; best = { kind, ref: e }; }
     };
-    S.animals.forEach(a => test(a, 'animal', a.baby ? 14 : 22, a.baby ? 6 : 12));
+    S.animals.forEach(a => {
+      const sc = WORLD_SCALE * (a.baby ? Z.SPECIES[a.sp].babyScale : 1), w = (BODY_W[a.sp] || 100) * sc, h = (BODY_H[a.sp] || 80) * sc;
+      test(a, 'animal', Math.max(a.baby ? 14 : 22, w * 0.32), Math.max(a.baby ? 6 : 12, h * 0.4) + (a.fly || 0) * FLY_HEIGHT);
+    });
     S.staff.forEach(s => test(s, 'staff', 12, 10));
     guests.forEach(g => !g.inside && test(g, 'guest', 10, 10));
     if (!best) {
@@ -2404,13 +2407,99 @@
       Every animal is now unlocked, secret ones included.`;
     box.querySelector('.stars').textContent = '★'.repeat(MAX_STARS);
     box.classList.add('show');
-    startConfetti();
+    startConfetti(); startFireworks();
     $('victory-go').focus();
   }
   function hideVictory() {
     const box = $('victory'); if (!box) return;
-    box.classList.remove('show'); cancelAnimationFrame(victoryRaf); victoryRaf = 0;
+    box.classList.remove('show'); cancelAnimationFrame(victoryRaf); victoryRaf = 0; cancelAnimationFrame(fireworksRaf); fireworksRaf = 0;
     setSpeed(speedBeforeWin);
+  }
+  // Fireworks that burst into the shapes of animals, the dragon first and then the ones living in this zoo.
+  // Each shape comes from drawing that animal's side view on a hidden canvas and keeping points along its outline.
+  let fireworksRaf = 0;
+  const fwShapes = {};
+  function fireworkShape(sp) {
+    if (fwShapes[sp]) return fwShapes[sp];
+    const W = 240, H = 170, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d'), sc = Math.min((W - 24) / (BODY_W[sp] || 110), (H - 24) / (BODY_H[sp] || 90));
+    Z.draw(c, sp, W / 2, H - 12, { phase: 1, moving: false, scale: sc, facing: 1 });
+    const px = c.getImageData(0, 0, W, H).data, solid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && px[(y * W + x) * 4 + 3] > 140;
+    const edge = [], fill = [];
+    for (let y = 0; y < H; y += 3) for (let x = 0; x < W; x += 3) {
+      if (!solid(x, y)) continue;
+      (solid(x - 3, y) && solid(x + 3, y) && solid(x, y - 3) && solid(x, y + 3) ? fill : edge).push([x, y]);
+    }
+    // mostly outline, with a light sprinkle inside so the shape reads as solid
+    const pick = (arr, n) => { const out = []; for (let i = 0; i < n && arr.length; i++) out.push(arr.splice((Math.random() * arr.length) | 0, 1)[0]); return out; };
+    const pts = [...pick(edge, 170), ...pick(fill, 40)];
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    pts.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, span = Math.max(1, x1 - x0, (y1 - y0) * 1.2);
+    return (fwShapes[sp] = pts.map(([x, y]) => [(x - cx) / span, (y - cy) / span]));
+  }
+  function startFireworks() {
+    const cv = $('fireworks'); if (!cv) return;
+    const c = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    const size = () => { cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr; };
+    size();
+    const W0 = () => cv.width / dpr, H0 = () => cv.height / dpr;
+    const mine = [...new Set(S.animals.map(a => a.sp))].filter(sp => sp !== 'dragon' && Z.SPECIES[sp]);
+    const fallback = ['lion', 'elephant', 'giraffe', 'penguin', 'zebra', 'flamingo', 'monkey', 'orca', 'trex', 'unicorn'];
+    const order = ['dragon', ...(mine.length >= 4 ? mine : [...mine, ...fallback.filter(x => !mine.includes(x))])];
+    const colors = ['#ffd23a', '#ff5a4e', '#5ad1ff', '#9dff6a', '#ff8ae2', '#ffffff', '#ffa133', '#b48cff'];
+    const rockets = [], sparks = [];
+    let t = 0, next = 0.2, k = 0;
+    const launch = () => {
+      const w = W0(), h = H0(), side = k % 2 ? 1 : -1;
+      // aim for the open space around the card: up top, or out to the sides on wide screens
+      const tx = w > 900 ? w / 2 + side * (w * 0.3 + Math.random() * w * 0.08) : w / 2 + side * w * 0.24;
+      const ty = w > 900 ? h * (0.18 + Math.random() * 0.5) : h * (0.1 + Math.random() * 0.12);
+      rockets.push({ x: tx + (Math.random() - 0.5) * 60, y: h + 10, tx, ty, sp: order[k % order.length], col: colors[k % colors.length], face: Math.random() < 0.5 ? -1 : 1, life: 0 });
+      k++;
+    };
+    const burst = r => {
+      const pts = fireworkShape(r.sp), w = W0(), big = Math.min(w > 900 ? 300 : 230, w * 0.46);
+      pts.forEach(([px, py]) => sparks.push({ x: r.x, y: r.y, ox: r.x, oy: r.y, gx: r.x + px * big * r.face, gy: r.y + py * big, t: 0, col: r.col, shape: true }));
+      for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, v = 80 + Math.random() * 160; sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, col: r.col }); }
+    };
+    let lastT = performance.now();
+    const step = now => {
+      const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; t += dt;
+      if (cv.width !== cv.clientWidth * dpr) size();
+      if (t > next) { launch(); next = t + (W0() > 900 ? 0.9 : 1.5) + Math.random() * 0.5; }
+      c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W0(), H0());
+      c.globalCompositeOperation = 'lighter';
+      for (let i = rockets.length - 1; i >= 0; i--) {
+        const r = rockets[i]; r.life += dt;
+        const u = Math.min(1, r.life / 0.9), e = 1 - Math.pow(1 - u, 2.2);
+        const x = r.x + (r.tx - r.x) * e, y = r.y + (r.ty - r.y) * e;
+        c.fillStyle = r.col; c.globalAlpha = 0.9; c.beginPath(); c.arc(x, y, 2.4, 0, 7); c.fill();
+        for (let j = 1; j < 6; j++) { c.globalAlpha = 0.5 - j * 0.08; c.beginPath(); c.arc(x + (Math.random() - 0.5) * 2, y + j * 7, 1.6, 0, 7); c.fill(); }
+        if (u >= 1) { r.x = r.tx; r.y = r.ty; burst(r); rockets.splice(i, 1); }
+      }
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const p = sparks[i]; p.t += dt;
+        let a;
+        if (p.shape) {
+          // fly out into the animal's shape, hold it (twinkling), then sag and fade
+          if (p.t < 0.55) { const e = 1 - Math.pow(1 - p.t / 0.55, 3); p.x = p.ox + (p.gx - p.ox) * e; p.y = p.oy + (p.gy - p.oy) * e; a = 1; }
+          else if (p.t < 1.7) { p.x = p.gx; p.y = p.gy + (p.t - 0.55) * 6; a = 0.75 + Math.random() * 0.25; }
+          else { const u = p.t - 1.7; p.y += (20 + u * 90) * dt; a = 1 - u / 1.1; }
+          if (p.t > 2.8) { sparks.splice(i, 1); continue; }
+        } else {
+          p.vx *= 0.96; p.vy = p.vy * 0.96 + 90 * dt; p.x += p.vx * dt; p.y += p.vy * dt; a = 1 - p.t / 1.1;
+          if (p.t > 1.1) { sparks.splice(i, 1); continue; }
+        }
+        c.globalAlpha = Math.max(0, a); c.fillStyle = p.col;
+        c.beginPath(); c.arc(p.x, p.y, p.shape ? 2.2 : 1.6, 0, 7); c.fill();
+        if (p.shape && p.t < 1.7) { c.globalAlpha = Math.max(0, a) * 0.25; c.beginPath(); c.arc(p.x, p.y, 5, 0, 7); c.fill(); }
+      }
+      c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+      fireworksRaf = requestAnimationFrame(step);
+    };
+    cancelAnimationFrame(fireworksRaf);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) fireworksRaf = requestAnimationFrame(step);
   }
   function startConfetti() {
     const cv = $('confetti'), c = cv.getContext('2d'), dpr = window.devicePixelRatio || 1;

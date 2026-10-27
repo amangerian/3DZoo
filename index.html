@@ -130,6 +130,8 @@
   #victory { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.72); }
   #victory.show { display:flex; }
   #confetti { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+  #fireworks { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+  #victory .card-win { z-index:1; }
   #victory .card-win { position:relative; text-align:center; padding:24px 22px; max-width:min(640px, calc(100% - 32px)); background:rgba(17,17,17,.9); border:4px solid #d4a017; box-shadow:0 0 40px rgba(245,197,24,.45); color:#fff; }
   #victory h2 { margin:0; font-size:clamp(20px, 6.2vw, 56px); line-height:1.05; letter-spacing:2px; white-space:nowrap; font-weight:900;
     background:linear-gradient(100deg, #8a6d0b 0%, #f5c518 22%, #fff3b0 38%, #f5c518 52%, #b8860b 72%, #ffe066 100%); background-size:220% 100%;
@@ -148,7 +150,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>3D ZOO <small id="ver" title="Game version">v1.14</small></h1>
+    <h1>3D ZOO <small id="ver" title="Game version">v1.15</small></h1>
     <button class="stat click" id="s-money" title="See income and costs"><small>Money</small><b id="money">$0</b></button>
     <div class="stat"><small id="day">Day 1</small><div class="clock"><div id="clock"></div></div></div>
     <div class="stat"><small>Guests</small><b id="guests">0</b></div>
@@ -240,6 +242,7 @@
   </nav>
 </div>
 <div id="victory" role="dialog" aria-modal="true" aria-labelledby="victory-title">
+  <canvas id="fireworks"></canvas>
   <canvas id="confetti"></canvas>
   <div class="card-win">
     <h2 id="victory-title">CONGRATULATIONS!</h2>
@@ -249,8 +252,8 @@
     <button id="victory-go">Keep playing</button>
   </div>
 </div>
-<script src="animals.js?v=1.14"></script>
-<script src="world-art.js?v=1.14"></script>
-<script src="game.js?v=1.14"></script>
+<script src="animals.js?v=1.15"></script>
+<script src="world-art.js?v=1.15"></script>
+<script src="game.js?v=1.15"></script>
 </body>
 </html>
