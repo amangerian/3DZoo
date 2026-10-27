@@ -16,8 +16,8 @@ Play it by opening `index.html`, or publish it with GitHub Pages (below).
   - 8 stars: ??? (the hardest of all: a near-perfect rating and a huge crowd)
   What stars 7 and 8 unlock stays hidden, in the game and in the Animals tab, until you earn them.
   Earned stars are never lost. Older saves work out their star level when loaded and keep everything already built.
-- **Winning**: earning the last star beats the game, with a big gold congratulations and confetti. You can keep playing afterward, and see the celebration again from the stars panel.
-- **Secrets**: a few rare animals are hidden until you find out how to unlock them.
+- **Winning**: earning the last star beats the game, with a big gold congratulations and confetti. Every animal unlocks, secret ones included. You can keep playing afterward, and see the celebration again from the stars panel.
+- **Secrets**: a few rare animals are hidden until you find out how to unlock them. Earning all 8 stars unlocks any you haven't found yet.
 - **Floors**: paint **snow** inside an exhibit for cold animals (penguins, snow leopards, polar bears want at least half the land snowy). Paint a **swim pool** inside an exhibit for animals that love the water (penguins, flamingos, bears, polar bears, elephants, hippos, rhinos, anacondas): they swim in it, and a pool of 3+ tiles counts as their water. Paint **tank water** (at least 12 tiles, inside a fence) for sharks, orcas, and dolphins. Fences beside tank water become glass walls.
 - **Sharks, orcas, and dolphins** need lots of room in the tank, expensive food, and a keeper trained to skill 3. Orcas need another orca for company, and dolphins live in pods.
 - **Aviaries**: birds that fly (sea hawk, parrot, toucan, owl, bald eagle) can only live in an exhibit closed in with **aviary mesh** all the way around. Paint mesh right over an existing fence to turn a pen into an aviary.
@@ -83,6 +83,10 @@ There's no build step and nothing to install.
 
 The version shows in the top bar next to the title and in the Menu. Each release also bumps the `?v=` on the script tags in `index.html` and `approve.html`, so browsers fetch the new files instead of an old cached copy.
 
+- **v1.14** (Oct 26, 2026)
+  - Fixed items moving to other squares after a refresh. Perches, climbing frames, buoys, bubble curtains, and hoops weren't being saved, and each one missing slid every item after it one square over. All items save now. Older saves are checked on load: anything that ended up somewhere it can't be (a tree on a path, a toy on a fence) is cleared off, and the game says so once.
+- **v1.13** (Oct 26, 2026)
+  - Earning all 8 stars unlocks every animal, including any secret animals whose tasks you haven't finished.
 - **v1.12** (Oct 26, 2026)
   - The Build tab is shorter, which helps most on phones: Path and Remove stay on the top row, and the rest are in folders (Fences, Trees, Water & snow, Toys, Buildings) that open into their options.
   - Earning the final star shows a "Congratulations! You won!" screen with gold letters and confetti. The game pauses for it and carries on afterward. Zoos that already had every star see it once when loaded.

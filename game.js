@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.12';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.14';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
@@ -195,8 +195,12 @@
   // Which color layers are on at each star level.
   const COLOR_AT = { plants: 2, water: 3, built: 4, people: 5, animals: 6 };
   const SAVE_KEY = '3dzoo-save-v1';
-  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e', acacia: 'a', palm: 'p', pine: 'n', wheel: 'h', post: 'r' };
+  // One letter per item in the save file. Every item and building needs its own letter here: an item with no letter
+  // used to be dropped from the save, which slid every item after it one square over on the next load.
+  const ITEM_CHAR = { tree: 't', bush: 'b', water: 'w', toy: 'y', gift: 'g', edu: 'e', acacia: 'a', palm: 'p', pine: 'n', wheel: 'h', post: 'r',
+    perch: 'k', climb: 'm', buoy: 'o', bubbler: 'u', hoop: 'q' };
   const CHAR_ITEM = Object.fromEntries(Object.entries(ITEM_CHAR).map(([k, v]) => [v, k]));
+  [...ITEMS, ...Object.keys(BUILDINGS)].forEach(k => { if (!ITEM_CHAR[k]) console.error(`3D Zoo: "${k}" has no save letter in ITEM_CHAR`); });
   const NAMES = ['Mabel', 'Otis', 'Pip', 'Juniper', 'Hank', 'Clementine', 'Biscuit', 'Rosie', 'Gus', 'Waffles', 'Luna',
     'Moose', 'Pickles', 'Daisy', 'Ziggy', 'Noodle', 'Fern', 'Bruno', 'Olive', 'Tater', 'Winnie', 'Rocco', 'Peanut', 'Hazel',
     'Ivy', 'Bean', 'Maple', 'Duke', 'Poppy', 'Nugget', 'Sage', 'Theo', 'Willow', 'Banjo', 'Cocoa', 'Remy'];
@@ -1822,7 +1826,7 @@
   function serialize() {
     return {
       v: 1, starRules: STAR_RULES, money: S.money, stars: S.stars, won: S.won || undefined, wonDay: S.wonDay || undefined, secrets: S.secrets, peakGuests: S.peakGuests, bornBy: S.bornBy, day: S.day, time: S.time, speed: S.speed, ticket: S.ticket, rep: S.rep,
-      tiles: S.tiles.join(''), items: S.items.map(x => (x ? ITEM_CHAR[x] : '.')).join(''),
+      tiles: S.tiles.join(''), items: Array.from({ length: MW * MH }, (_, i) => (S.items[i] && ITEM_CHAR[S.items[i]]) || '.').join(''),   // always one letter per tile
       animals: S.animals.map(a => ({ id: a.id, sp: a.sp, sex: a.sex, bc: a.bc || undefined, baby: a.baby, age: +a.age.toFixed(3), x: Math.round(a.x), y: Math.round(a.y),
         hunger: Math.round(a.hunger), happy: Math.round(a.happy), name: a.name, fun: +(a.fun || 0).toFixed(2), loose: a.loose || undefined, moveTo: a.moveTo ?? undefined })),
       staff: S.staff.map(s => ({ id: s.id, type: s.type, name: s.name, skill: s.skill || 1, assign: s.assign ?? undefined })),
@@ -1841,7 +1845,17 @@
     s.secrets = o.secrets || {}; s.peakGuests = o.peakGuests || 0; s.bornBy = o.bornBy || {};
     if (o.starRules !== STAR_RULES) { s.stars = 0; s.restarred = true; }    // star goals changed: work the level out again
     s.tiles = o.tiles.split('').map(Number);
-    s.items = o.items.split('').map(ch => CHAR_ITEM[ch] || null);
+    s.items = Array.from({ length: MW * MH }, (_, i) => CHAR_ITEM[o.items[i]] || null);
+    // Saves from before v1.14 could have slid items onto squares they can't be on. Clear those off.
+    let stray = 0;
+    s.items.forEach((it, i) => {
+      if (!it) return;
+      const t = s.tiles[i], ok = BUILDINGS[it] ? t === GRASS
+        : WATER_TOYS.includes(it) ? t === TANK
+        : t === GRASS || t === SNOW || ((t === TANK || t === POOL) && it === 'toy');
+      if (!ok) { s.items[i] = null; stray++; }
+    });
+    if (o.items.length !== MW * MH || stray) s.repairedItems = stray || 1;
     s.animals = (o.animals || []).filter(a => Z.SPECIES[a.sp]).map(a => Object.assign({ path: [], wait: 1, phase: 0, facing: 1, ex: -1, moving: false }, a));
     // saves from before animals were male or female: alternate female, male, female... within each species, so pairs stay pairs
     const seenSp = {};
@@ -2348,6 +2362,16 @@
     toast(`${nm[0].toUpperCase() + nm.slice(1)} unlocks at ${n} stars. Click the stars at the top to see how.`);
   }
   function checkSecrets() {
+    // a zoo with every star has earned every animal: any secrets not found yet unlock all at once
+    if (S.stars >= MAX_STARS) {
+      const rest = Z.ids.filter(sp => Z.SPECIES[sp].secret && !S.secrets[sp]);
+      if (rest.length) {
+        rest.forEach(sp => { S.secrets[sp] = true; });
+        const msg = `With all ${MAX_STARS} stars, every animal is yours: the ${rest.map(sp => lowName(Z.SPECIES[sp])).join(', ').replace(/, ([^,]*)$/, ' and $1')} ${rest.length > 1 ? 'are' : 'is'} now in the Animals tab!`;
+        log(msg); toast(msg); buildTray(); wireTray(); renderTray();
+      }
+      return;
+    }
     Object.entries(SECRETS).forEach(([sp, x]) => {
       if (S.secrets[sp] || !x.test()) return;
       S.secrets[sp] = true; log(x.msg); toast(x.msg); buildTray(); wireTray(); renderTray();
@@ -2363,6 +2387,7 @@
       log(msg); toast(msg);
       if (L.hidden) { buildTray(); wireTray(); }
       renderHud(); renderTray(); if (panelMode === 'stars') renderPanel();
+      if (S.stars === MAX_STARS) checkSecrets();      // the last star unlocks every animal right away
       if (S.stars === MAX_STARS && !S.won) { S.won = true; S.wonDay = S.day; log(`You won! The zoo earned all ${MAX_STARS} stars on day ${S.day}.`); setTimeout(() => showVictory(), 900); save(true); }
     }
   }
@@ -2375,7 +2400,8 @@
     speedBeforeWin = S.speed || 1; setSpeed(0);       // pause while celebrating
     const species = new Set(S.animals.map(a => a.sp)).size;
     $('victory-stats').innerHTML = `Your zoo earned all ${MAX_STARS} stars${S.wonDay ? ` on day ${S.wonDay}` : ''}.<br>
-      ${S.animals.length} animals of ${species} species, ${S.staff.length} staff, ${(S.totals.guests || 0).toLocaleString()} guests welcomed, and ${S.totals.births || 0} babies born.`;
+      ${S.animals.length} animals of ${species} species, ${S.staff.length} staff, ${(S.totals.guests || 0).toLocaleString()} guests welcomed, and ${S.totals.births || 0} babies born.<br>
+      Every animal is now unlocked, secret ones included.`;
     box.querySelector('.stars').textContent = '★'.repeat(MAX_STARS);
     box.classList.add('show');
     startConfetti();
@@ -2957,9 +2983,14 @@
   if (!loadSaved()) S = newState();
   startWith(S);
   if (!S.log.length) log('Welcome to 3D Zoo! Open "How to play" to get started.');
+  if (S.repairedItems) {
+    const msg = 'Fixed a saving bug that moved items between squares. Items stay put now, but some may already have shifted: check your exhibits and move anything that looks out of place.';
+    log(msg); setTimeout(() => toast(msg), 600); delete S.repairedItems;
+  }
   setTab('build');
   setTool('look');
   requestAnimationFrame(frame);
+  if (S.stars >= MAX_STARS) checkSecrets();
   if (S.stars >= MAX_STARS && !S.won) { S.won = true; setTimeout(() => showVictory(), 1200); }
 
   // small hook for automated testing
