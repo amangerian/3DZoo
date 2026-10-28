@@ -4,7 +4,7 @@
   const Z = window.ZooAnimals, A = window.ZooArt;
 
   // ---------- constants ----------
-  const VERSION = '1.15';    // bump with every release (also in index.html: the header and the ?v= on each script)
+  const VERSION = '1.16';    // bump with every release (also in index.html: the header and the ?v= on each script)
   const T = 32, MW = 48, MH = 32, DAY = 60;          // tile px, map size, seconds per in-game day
   const ENT = { x: Math.floor(MW / 2), y: MH - 1 };
   const GRASS = 0, PATH = 1, FENCE = 2, SNOW = 3, TANK = 4, MESH = 5, POOL = 6;   // SNOW, TANK and POOL are exhibit floors; MESH is aviary fencing
@@ -237,6 +237,11 @@
   let pathVer = 0, zoneKey = '', zoneOf = new Int16Array(MW * MH).fill(-1), zoneTiles = [];   // janitor areas (see janitorZones)
   let selected = null;          // inspected entity or tile
   const view = { x: 0, y: 0, zoom: 1.2 };
+  // Map scroll speed: how far the map moves for each bit of finger, trackpad or arrow-key movement.
+  // 1 = the map sticks to your finger. Chosen in Menu > Map scrolling; remembered on this device.
+  const PAN_SPEEDS = [[1, 'Normal'], [1.5, 'Fast'], [2, 'Faster'], [3, 'Fastest']];
+  let panSpeed = (() => { try { const v = +localStorage.getItem('3dzoo-pan-speed'); return PAN_SPEEDS.some(p => p[0] === v) ? v : 2; } catch (e) { return 2; } })();
+  function setPanSpeed(v) { panSpeed = v; try { localStorage.setItem('3dzoo-pan-speed', String(v)); } catch (e) { /* not remembered, still applies */ } }
   let tool = 'look', toolSpecies = null;
   let buySex = 'F';             // whether the next animal bought is female or male (picked in the Animals tab)
   const sexWord = a => (a.sex === 'M' ? 'male' : 'female'), sexSign = a => (a.sex === 'M' ? '♂' : '♀');
@@ -2269,7 +2274,7 @@
     } else if (drag.mode === 'pan') {
       const dx = e.offsetX - drag.sx, dy = e.offsetY - drag.sy;
       if (Math.abs(dx) + Math.abs(dy) > 6) drag.moved = true;
-      if (drag.moved) { view.x = drag.vx - dx / view.zoom; view.y = drag.vy - dy / view.zoom; clampView(); }
+      if (drag.moved) { view.x = drag.vx - dx * panSpeed / view.zoom; view.y = drag.vy - dy * panSpeed / view.zoom; clampView(); }
     } else if (drag.mode === 'paint' && hover !== drag.last && ['path', 'fence', 'mesh', 'remove', 'snow', 'tank'].includes(tool)) {
       drag.last = hover; applyTool(hover, false); renderHud();
     }
@@ -2298,7 +2303,7 @@
       if (pinching) return;
       zoomAt(e.offsetX, e.offsetY, clamp(Math.exp(-e.deltaY * unit * 0.01), 0.6, 1.6));
     } else {
-      view.x += e.deltaX * unit / view.zoom; view.y += e.deltaY * unit / view.zoom; clampView();
+      view.x += e.deltaX * unit * panSpeed / view.zoom; view.y += e.deltaY * unit * panSpeed / view.zoom; clampView();
     }
   }, { passive: false });
   const gesturePoint = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
@@ -2761,10 +2766,13 @@
         <div class="card"><b>Saving</b><br><small>The game saves on this device at the end of every day.</small><br>
         <button id="b-save">Save now</button> <button id="b-export">Export save file</button>
         <label class="filebtn">Import save file<input id="b-import" type="file" accept=".json,application/json"></label></div>
+        <div class="card"><b>Map scrolling</b><br><small>How far the map moves when you drag it.</small><br>
+        ${PAN_SPEEDS.map(([v, l]) => `<button data-pan="${v}" class="${v === panSpeed ? 'on' : ''}">${l}</button>`).join(' ')}</div>
         <div class="card"><button id="b-new">Start a new zoo</button></div>
         <p class="muted">3D Zoo version ${VERSION}</p>
         <div class="card"><b>News</b>${S.log.slice(0, 12).map(l => `<div class="logline"><small>Day ${l.d}</small> ${escapeHtml(l.m)}</div>`).join('') || '<br><small>Nothing yet.</small>'}</div>`;
       el.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => { S.ticket = clamp(S.ticket + +b.dataset.tk, 0, 60); renderHud(); renderPanel(); });
+      el.querySelectorAll('[data-pan]').forEach(b => b.onclick = () => { setPanSpeed(+b.dataset.pan); renderPanel(); });
       $('b-save').onclick = () => save(false);
       $('b-export').onclick = exportSave;
       $('b-import').onchange = e => e.target.files[0] && importSave(e.target.files[0]);
@@ -3026,7 +3034,7 @@
   function frame(now) {
     let dt = Math.min(0.1, (now - last) / 1000); last = now; clock += dt;
     fadeTint(dt);
-    const pan = 400 * dt / view.zoom;
+    const pan = 400 * panSpeed * dt / view.zoom;
     if (keys.has('arrowleft') || keys.has('a')) view.x -= pan;
     if (keys.has('arrowright') || keys.has('d')) view.x += pan;
     if (keys.has('arrowup') || keys.has('w')) view.y -= pan;
